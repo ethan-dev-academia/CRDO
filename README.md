@@ -1,6 +1,6 @@
 # CRDO
 
-> Technologies
+> Technologies: 
 SwiftUI
 Swift
 Firebase
