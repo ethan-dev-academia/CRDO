@@ -1,6 +1,7 @@
+// Our auth is not working and moving away from Firebase to back4app for now. Looking at our options and thinking about what we can do.
+
 import SwiftUI
 import AuthenticationServices
-import FirebaseAuth
 
 struct AuthView: View {
     // @AppStorage("signedInUserID") private var signedInUserID: String = ""

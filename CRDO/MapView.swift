@@ -45,6 +45,11 @@ struct MapView: View {
     @State private var routeCoordinates: [CLLocationCoordinate2D] = []
     @State private var smoothedCoordinates: [CLLocationCoordinate2D] = []
     @Environment(\.dismiss) var dismiss
+    // Countdown states
+    @State private var showCountdown = false
+    @State private var countdownValue = 3
+    @State private var showCountdownOptions = false
+    @State private var selectedCountdownDuration = UserDefaults.standard.integer(forKey: "selectedCountdownDuration") == 0 ? 3 : UserDefaults.standard.integer(forKey: "selectedCountdownDuration")
     
     var speedMph: Double {
         if isPaused || isEnded { return 0 }
@@ -94,15 +99,36 @@ struct MapView: View {
                     Spacer()
                     if !isEnded {
                         if !isTimerRunning {
-                            Button(action: {
-                                startTimer()
-                            }) {
-                                Text("START")
-                                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                            HStack(spacing: 8) {
+                                Button(action: {
+                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                        showCountdownOptions.toggle()
+                                    }
+                                }) {
+                                    HStack {
+                                        Text("\(selectedCountdownDuration)s")
+                                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                        Image(systemName: "chevron.down")
+                                            .font(.system(size: 10))
+                                            .rotationEffect(.degrees(showCountdownOptions ? 180 : 0))
+                                    }
                                     .foregroundColor(.black)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
                                     .background(Color.white.opacity(0.9))
+                                    .cornerRadius(8)
+                                }
+                                
+                                Button(action: {
+                                    startCountdown()
+                                }) {
+                                    Text("START")
+                                        .font(.system(size: 14, weight: .bold, design: .monospaced))
+                                        .foregroundColor(.black)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 8)
+                                        .background(Color.white.opacity(0.9))
+                                }
                             }
                         } else {
                             HStack(spacing: 8) {
@@ -188,6 +214,53 @@ struct MapView: View {
             .background(Color.black.opacity(0.8))
             .frame(maxWidth: .infinity)
             .padding(.bottom, 0)
+            
+            // Countdown options overlay
+            if showCountdownOptions {
+                VStack(spacing: 0) {
+                    ForEach([0, 3, 10], id: \.self) { duration in
+                        Button(action: {
+                            selectedCountdownDuration = duration
+                            UserDefaults.standard.set(duration, forKey: "selectedCountdownDuration")
+                            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                showCountdownOptions = false
+                            }
+                        }) {
+                            Text("\(duration)s")
+                                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                                .foregroundColor(.black)
+                                .frame(width: 60, height: 30)
+                                .background(Color.white.opacity(0.9))
+                        }
+                        .scaleEffect(selectedCountdownDuration == duration ? 1.1 : 1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedCountdownDuration)
+                        
+                        if duration != 10 {
+                            Rectangle()
+                                .fill(Color.white.opacity(0.3))
+                                .frame(height: 1)
+                                .frame(width: 50)
+                        }
+                    }
+                }
+                .background(Color.white.opacity(0.9))
+                .cornerRadius(8)
+                .offset(y: 35)
+                .transition(.scale.combined(with: .opacity))
+                .zIndex(1)
+            }
+            
+            // Countdown overlay
+            if showCountdown {
+                ZStack {
+                    Color.black.opacity(0.7).edgesIgnoringSafeArea(.all)
+                    Text(countdownValue > 0 ? "\(countdownValue)" : "Go!")
+                        .font(.system(size: countdownValue > 0 ? 100 : 60, weight: .bold, design: .monospaced))
+                        .foregroundColor(.white)
+                }
+                .transition(.opacity)
+                .zIndex(2)
+            }
         }
         .navigationBarHidden(true)
         .alert("End Workout?", isPresented: $showEndConfirmation) {
@@ -307,6 +380,30 @@ struct MapView: View {
         let minutes = (Int(timeInterval) % 3600) / 60
         let seconds = Int(timeInterval) % 60
         return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+    
+    // Countdown logic
+    private func startCountdown() {
+        countdownValue = selectedCountdownDuration
+        showCountdown = true
+        animateCountdown()
+    }
+    
+    private func animateCountdown() {
+        if countdownValue > 0 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                countdownValue -= 1
+                animateCountdown()
+            }
+        } else {
+            // Show "Go!" for a brief moment
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                withAnimation {
+                    showCountdown = false
+                }
+                startTimer()
+            }
+        }
     }
 }
 

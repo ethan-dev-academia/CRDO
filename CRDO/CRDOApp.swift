@@ -6,11 +6,9 @@
 //
 
 import SwiftUI
-import AuthenticationServices
 
 @main
 struct CRDOApp: App {
-    // FirebaseApp.configure() is no longer needed
     var body: some Scene {
         WindowGroup {
             ContentView()
