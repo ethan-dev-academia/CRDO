@@ -233,7 +233,7 @@ struct Panel2View: View {
     }
     
     private func toggleSelection(_ index: Int) {
-        selectedOptions.removeAll { $0 >= 0 && $0 <= 3 } // Clear previous selections
+        selectedOptions.removeAll { $0 >= 0 && $0 <= 3 }  // Clear previous selections
         selectedOptions.append(index)
         
         // Set transitioning state to prevent further selections
