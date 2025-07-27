@@ -8,9 +8,11 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var supabaseManager = SupabaseManager.shared
     @State private var currentPanel = 0
     @State private var selectedOptions: [Int] = []
     @State private var showingMainApp = false
+    @State private var showingAuth = false
     @State private var isTransitioning = false
     
     var body: some View {
@@ -26,8 +28,20 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
             
-            if showingMainApp {
-                MainAppView()
+            if supabaseManager.isAuthenticated {
+                if supabaseManager.userProfile?.onboardingCompleted == true {
+                    MainAppView()
+                        .transition(.opacity.combined(with: .scale))
+                } else {
+                    // Show onboarding for authenticated users who haven't completed it
+                    OnboardingView(
+                        currentPanel: $currentPanel,
+                        selectedOptions: $selectedOptions,
+                        isTransitioning: $isTransitioning
+                    )
+                }
+            } else if showingAuth {
+                AuthenticationView()
                     .transition(.opacity.combined(with: .scale))
             } else {
                 // Landing panels
@@ -66,10 +80,16 @@ struct ContentView: View {
                     NavigationButtons(
                         currentPanel: $currentPanel,
                         totalPanels: 5,
-                        showingMainApp: $showingMainApp
+                        showingAuth: $showingAuth
                     )
                     .padding(.bottom, 30)
                 }
+            }
+        }
+        .onAppear {
+            // Check if user is already authenticated
+            if supabaseManager.isAuthenticated && supabaseManager.userProfile?.onboardingCompleted == true {
+                showingMainApp = true
             }
         }
     }
@@ -452,7 +472,7 @@ struct Panel6View: View {
 struct NavigationButtons: View {
     @Binding var currentPanel: Int
     let totalPanels: Int
-    @Binding var showingMainApp: Bool
+    @Binding var showingAuth: Bool
     
     var body: some View {
         HStack(spacing: 20) {
@@ -468,16 +488,16 @@ struct NavigationButtons: View {
             Spacer()
             
             if currentPanel < totalPanels - 1 {
-                                    Button("Next") {
-                        withAnimation(.easeInOut(duration: 0.5)) {
-                            currentPanel += 1
-                        }
+                Button("Next") {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        currentPanel += 1
                     }
+                }
                 .buttonStyle(GlassButtonStyle())
             } else {
-                Button("Start Building") {
+                Button("Get Started") {
                     withAnimation(.easeInOut(duration: 0.8)) {
-                        showingMainApp = true
+                        showingAuth = true
                     }
                 }
                 .buttonStyle(GlassButtonStyle())
@@ -595,19 +615,104 @@ extension Color {
     static let gold = Color(red: 1.0, green: 0.84, blue: 0.0)
 }
 
-// MARK: - Main App View (Placeholder)
-struct MainAppView: View {
+// MARK: - Onboarding View for Authenticated Users
+struct OnboardingView: View {
+    @StateObject private var supabaseManager = SupabaseManager.shared
+    @Binding var currentPanel: Int
+    @Binding var selectedOptions: [Int]
+    @Binding var isTransitioning: Bool
+    
     var body: some View {
-        VStack {
-            Text("Welcome to CRDO!")
-                .font(.largeTitle)
-                .foregroundColor(.white)
-            Text("Your city awaits...")
-                .font(.title2)
-                .foregroundColor(.gold)
+        ZStack {
+            // Background gradient
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color.black,
+                    Color.black.opacity(0.8)
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Progress indicator
+                ProgressIndicator(currentPanel: currentPanel, totalPanels: 5)
+                    .padding(.top, 40)
+                    .padding(.horizontal, 20)
+                
+                // Panel content
+                TabView(selection: $currentPanel) {
+                    // Panel 1: Fitness reimagined
+                    Panel1View(selectedOptions: $selectedOptions, currentPanel: $currentPanel, isTransitioning: $isTransitioning)
+                        .tag(0)
+                    
+                    // Panel 2: What's your why
+                    Panel2View(selectedOptions: $selectedOptions, currentPanel: $currentPanel, isTransitioning: $isTransitioning)
+                        .tag(1)
+                    
+                    // Panel 3: Streak relationship
+                    Panel3View(selectedOptions: $selectedOptions, currentPanel: $currentPanel, isTransitioning: $isTransitioning)
+                        .tag(2)
+                    
+                    // Panel 5: Daily challenges
+                    Panel5View(selectedOptions: $selectedOptions, currentPanel: $currentPanel, isTransitioning: $isTransitioning)
+                        .tag(3)
+                    
+                    // Panel 6: Final motivation
+                    Panel6View()
+                        .tag(4)
+                }
+                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                .animation(.easeInOut(duration: 0.3), value: currentPanel)
+                
+                // Navigation buttons
+                OnboardingNavigationButtons(
+                    currentPanel: $currentPanel,
+                    totalPanels: 5
+                )
+                .padding(.bottom, 30)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .background(Color.black)
+    }
+}
+
+// MARK: - Onboarding Navigation Buttons
+struct OnboardingNavigationButtons: View {
+    @StateObject private var supabaseManager = SupabaseManager.shared
+    @Binding var currentPanel: Int
+    let totalPanels: Int
+    
+    var body: some View {
+        HStack(spacing: 20) {
+            if currentPanel > 0 {
+                Button("Back") {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        currentPanel -= 1
+                    }
+                }
+                .buttonStyle(GlassButtonStyle())
+            }
+            
+            Spacer()
+            
+            if currentPanel < totalPanels - 1 {
+                Button("Next") {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        currentPanel += 1
+                    }
+                }
+                .buttonStyle(GlassButtonStyle())
+            } else {
+                Button("Complete Setup") {
+                    Task {
+                        await supabaseManager.completeOnboarding()
+                    }
+                }
+                .buttonStyle(GlassButtonStyle())
+            }
+        }
+        .padding(.horizontal, 20)
     }
 }
 

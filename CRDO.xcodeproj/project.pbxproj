@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		E0A8F27F2E368FD20043036D /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = E0A8F27E2E368FD20043036D /* Supabase */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		E0B197092E33FB3C00462039 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -29,9 +33,28 @@
 		E0B197122E33FB3C00462039 /* CRDOUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CRDOUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E0A8F2782E368ED50043036D /* Exceptions for "CRDO" folder in "CRDO" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				AuthenticationView.swift,
+				Config.swift,
+				ContentView.swift,
+				CRDOApp.swift,
+				Info.plist,
+				MainAppView.swift,
+				SupabaseManager.swift,
+			);
+			target = E0B196FA2E33FB3B00462039 /* CRDO */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E0B196FD2E33FB3B00462039 /* CRDO */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E0A8F2782E368ED50043036D /* Exceptions for "CRDO" folder in "CRDO" target */,
+			);
 			path = CRDO;
 			sourceTree = "<group>";
 		};
@@ -52,6 +75,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E0A8F27F2E368FD20043036D /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -72,12 +96,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		E0A8F27D2E368FD20043036D /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		E0B196F22E33FB3B00462039 = {
 			isa = PBXGroup;
 			children = (
 				E0B196FD2E33FB3B00462039 /* CRDO */,
 				E0B1970B2E33FB3C00462039 /* CRDOTests */,
 				E0B197152E33FB3C00462039 /* CRDOUITests */,
+				E0A8F27D2E368FD20043036D /* Frameworks */,
 				E0B196FC2E33FB3B00462039 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -106,12 +138,14 @@
 			buildRules = (
 			);
 			dependencies = (
+				E0A8F2812E3694DA0043036D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				E0B196FD2E33FB3B00462039 /* CRDO */,
 			);
 			name = CRDO;
 			packageProductDependencies = (
+				E0A8F27E2E368FD20043036D /* Supabase */,
 			);
 			productName = CRDO;
 			productReference = E0B196FB2E33FB3B00462039 /* CRDO.app */;
@@ -195,6 +229,9 @@
 			);
 			mainGroup = E0B196F22E33FB3B00462039;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E0A8F2792E368F0C0043036D /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E0B196FC2E33FB3B00462039 /* Products */;
 			projectDirPath = "";
@@ -256,6 +293,10 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		E0A8F2812E3694DA0043036D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = E0A8F2802E3694DA0043036D /* Supabase */;
+		};
 		E0B1970A2E33FB3C00462039 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = E0B196FA2E33FB3B00462039 /* CRDO */;
@@ -400,6 +441,9 @@
 				DEVELOPMENT_TEAM = VHQNB3XYK7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CRDO/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CRDO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -428,6 +472,9 @@
 				DEVELOPMENT_TEAM = VHQNB3XYK7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = CRDO/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = CRDO;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -558,6 +605,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E0A8F2792E368F0C0043036D /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E0A8F27E2E368FD20043036D /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0A8F2792E368F0C0043036D /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+		E0A8F2802E3694DA0043036D /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0A8F2792E368F0C0043036D /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E0B196F32E33FB3B00462039 /* Project object */;
 }
