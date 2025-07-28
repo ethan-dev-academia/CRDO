@@ -2,71 +2,205 @@
 //  ContentView.swift
 //  CRDO
 //
-//  Created by Ethan yip on 7/25/25.
+//  Created by Ethan Yip on 7/25/25.
+//  Refactored for efficiency & maintainability
 //
 
 import SwiftUI
 
+// MARK: - Models
+
+struct Option: Identifiable, Equatable {
+    let id: Int
+    let icon: String
+    let text: String
+}
+
+enum OnboardingStep: Int, CaseIterable, Identifiable {
+    case fitness
+    case why
+    case streak
+    case challenges
+    case final
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .fitness:      return "Fitness reimagined."
+        case .why:          return "What's your \"why\" for showing up?"
+        case .streak:       return "When it comes to streaks, what's your relationship status?"
+        case .challenges:   return "You've got 15 minutes a day. Be honest — what are we up against?"
+        case .final:        return "Ready to build your city?"
+        }
+    }
+
+    var subtitle: String? {
+        switch self {
+        case .fitness:
+            return "BUILD A CITY WHILE YOU MOVE"
+        case .why:
+            return "(Yes, existential dread counts.)"
+        case .streak:
+            return "(We're all commitment-phobic at some point. It's okay.)"
+        case .challenges:
+            return "(We respect your battle.)"
+        case .final:
+            return "Your journey starts now."
+        }
+    }
+
+    var titleFont: Font {
+        switch self {
+        case .fitness, .final:
+            return .system(size: 28, weight: .bold, design: .rounded)
+        case .why:
+            return .system(size: 24, weight: .bold, design: .rounded)
+        case .streak:
+            return .system(size: 22, weight: .bold, design: .rounded)
+        case .challenges:
+            return .system(size: 20, weight: .bold, design: .rounded)
+        }
+    }
+
+    /// Options shown for the step (nil for the last one)
+    var options: [Option]? {
+        switch self {
+        case .fitness:
+            return [
+                .init(id: 0, icon: "🎯", text: "Finally sticking to something for more than 3 days"),
+                .init(id: 1, icon: "🏙️", text: "Watching my city not look like a sad parking lot"),
+                .init(id: 2, icon: "🥔", text: "Feeling less like a potato with legs"),
+                .init(id: 3, icon: "✨", text: "Lowkey trying to become that *person*")
+            ]
+        case .why:
+            return [
+                .init(id: 0, icon: "✅", text: "I like structure and progress"),
+                .init(id: 1, icon: "🎭", text: "I want to impress someone (maybe myself)"),
+                .init(id: 2, icon: "🧃", text: "I want to feel better (emotionally, physically, spiritually, digestively)"),
+                .init(id: 3, icon: "❓", text: "Honestly, no clue — but I'm here, so let's see what happens")
+            ]
+        case .streak:
+            return [
+                .init(id: 0, icon: "🔓", text: "\"Day one\" is my natural habitat"),
+                .init(id: 1, icon: "🫣", text: "I ghost after 3 days, but I come back eventually"),
+                .init(id: 2, icon: "🧱", text: "I'm ready to build something steady — like a responsible adult (kind of)"),
+                .init(id: 3, icon: "🔥", text: "I'm unhinged and addicted to green checkmarks")
+            ]
+        case .challenges:
+            return [
+                .init(id: 0, icon: "🛋️", text: "The gravitational pull of my couch"),
+                .init(id: 1, icon: "📱", text: "An endless scroll that started \"just for a sec\""),
+                .init(id: 2, icon: "🧩", text: "Literally every other responsibility in my life"),
+                .init(id: 3, icon: "💪", text: "Nothing. This is my time now")
+            ]
+        case .final:
+            return nil
+        }
+    }
+
+    static var total: Int { Self.allCases.count }
+}
+
+// MARK: - ViewModel
+
+final class OnboardingViewModel: ObservableObject {
+    @Published var currentStep: OnboardingStep = .fitness
+    @Published var selected: [OnboardingStep: Int] = [:]
+    @Published var showingMainApp = false
+    @Published var isTransitioning = false
+
+    func select(_ optionID: Int, in step: OnboardingStep) {
+        guard !isTransitioning else { return }
+        selected[step] = optionID
+        selectAndAdvance()
+    }
+
+    private func selectAndAdvance() {
+        isTransitioning = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            withAnimation(.easeInOut(duration: 0.5)) {
+                if let next = OnboardingStep(rawValue: self.currentStep.rawValue + 1) {
+                    self.currentStep = next
+                }
+                self.isTransitioning = false
+            }
+        }
+    }
+
+    func back() {
+        guard currentStep.rawValue > 0 else { return }
+        withAnimation(.easeInOut(duration: 0.5)) {
+            currentStep = OnboardingStep(rawValue: currentStep.rawValue - 1) ?? .fitness
+        }
+    }
+
+    func next() {
+        guard currentStep.rawValue < OnboardingStep.total - 1 else { return }
+        withAnimation(.easeInOut(duration: 0.5)) {
+            currentStep = OnboardingStep(rawValue: currentStep.rawValue + 1) ?? .final
+        }
+    }
+
+    func startApp() {
+        withAnimation(.easeInOut(duration: 0.8)) {
+            showingMainApp = true
+        }
+    }
+}
+
+// MARK: - Root View
+
 struct ContentView: View {
-    @State private var currentPanel = 0
-    @State private var selectedOptions: [Int] = []
-    @State private var showingMainApp = false
-    @State private var isTransitioning = false
-    
+    @StateObject private var vm = OnboardingViewModel()
+
     var body: some View {
         ZStack {
-            // Background gradient
             LinearGradient(
-                gradient: Gradient(colors: [
-                    Color.black,
-                    Color.black.opacity(0.8)
-                ]),
+                gradient: Gradient(colors: [Color.black, Color.black.opacity(0.8)]),
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-            
-            if showingMainApp {
+
+            if vm.showingMainApp {
                 MainAppView()
                     .transition(.opacity.combined(with: .scale))
             } else {
-                // Landing panels
                 VStack(spacing: 0) {
-                    // Progress indicator
-                    ProgressIndicator(currentPanel: currentPanel, totalPanels: 5)
+                    ProgressIndicator(currentIndex: vm.currentStep.rawValue, total: OnboardingStep.total)
                         .padding(.top, 40)
                         .padding(.horizontal, 20)
-                    
-                    // Panel content
-                    TabView(selection: $currentPanel) {
-                        // Panel 1: Fitness reimagined
-                        Panel1View(selectedOptions: $selectedOptions, currentPanel: $currentPanel, isTransitioning: $isTransitioning)
-                            .tag(0)
-                        
-                        // Panel 2: What's your why
-                        Panel2View(selectedOptions: $selectedOptions, currentPanel: $currentPanel, isTransitioning: $isTransitioning)
-                            .tag(1)
-                        
-                        // Panel 3: Streak relationship
-                        Panel3View(selectedOptions: $selectedOptions, currentPanel: $currentPanel, isTransitioning: $isTransitioning)
-                            .tag(2)
-                        
-                        // Panel 5: Daily challenges
-                        Panel5View(selectedOptions: $selectedOptions, currentPanel: $currentPanel, isTransitioning: $isTransitioning)
-                            .tag(3)
-                        
-                        // Panel 6: Final motivation
-                        Panel6View()
-                            .tag(4)
+
+                    TabView(selection: $vm.currentStep) {
+                        ForEach(OnboardingStep.allCases) { step in
+                            Group {
+                                if let options = step.options {
+                                    OnboardingPanel(
+                                        step: step,
+                                        options: options,
+                                        selectedID: Binding(
+                                            get: { vm.selected[step] },
+                                            set: { _ in } // selection handled inside select()
+                                        ),
+                                        onSelect: { id in vm.select(id, in: step) }
+                                    )
+                                } else {
+                                    FinalPanel()
+                                }
+                            }
+                            .tag(step)
+                        }
                     }
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-                    .animation(.easeInOut(duration: 0.3), value: currentPanel)
-                    
-                    // Navigation buttons
+                    .animation(.easeInOut(duration: 0.3), value: vm.currentStep)
+
                     NavigationButtons(
-                        currentPanel: $currentPanel,
-                        totalPanels: 5,
-                        showingMainApp: $showingMainApp
+                        currentIndex: vm.currentStep.rawValue,
+                        total: OnboardingStep.total,
+                        onBack: vm.back,
+                        onNext: vm.next,
+                        onStart: vm.startApp
                     )
                     .padding(.bottom, 30)
                 }
@@ -76,364 +210,111 @@ struct ContentView: View {
 }
 
 // MARK: - Progress Indicator
+
 struct ProgressIndicator: View {
-    let currentPanel: Int
-    let totalPanels: Int
-    
+    let currentIndex: Int
+    let total: Int
+
     var body: some View {
         HStack(spacing: 8) {
-            ForEach(0..<totalPanels, id: \.self) { index in
+            ForEach(0..<total, id: \.self) { index in
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(index <= currentPanel ? Color.gold : Color.gray.opacity(0.3))
+                    .fill(index <= currentIndex ? Color.gold : Color.gray.opacity(0.3))
                     .frame(height: 4)
-                    .animation(.easeInOut(duration: 0.3), value: currentPanel)
+                    .animation(.easeInOut(duration: 0.3), value: currentIndex)
             }
         }
     }
 }
 
-// MARK: - Panel 1: Fitness Reimagined
-struct Panel1View: View {
-    @Binding var selectedOptions: [Int]
-    @Binding var currentPanel: Int
-    @Binding var isTransitioning: Bool
-    
-    var body: some View {
-        VStack(spacing: 25) {
-            Spacer()
-            
-            // Main heading
-            VStack(spacing: 15) {
-                Text("Fitness reimagined.")
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
-                
-                Text("BUILD A CITY WHILE YOU MOVE")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(.gold)
-                    .tracking(2)
-            }
-            
-            Text("What kind of progress are you secretly hoping to see?")
-                .font(.subheadline)
-                .foregroundColor(.white.opacity(0.8))
-                .multilineTextAlignment(.center)
-            
-            // Progress options
-            VStack(spacing: 10) {
-                SelectionOption(
-                    icon: "🎯",
-                    text: "Finally sticking to something for more than 3 days",
-                    isSelected: selectedOptions.contains(12),
-                    action: { if !isTransitioning { toggleSelection(12) } }
-                )
-                
-                SelectionOption(
-                    icon: "🏙️",
-                    text: "Watching my city not look like a sad parking lot",
-                    isSelected: selectedOptions.contains(13),
-                    action: { if !isTransitioning { toggleSelection(13) } }
-                )
-                
-                SelectionOption(
-                    icon: "🥔",
-                    text: "Feeling less like a potato with legs",
-                    isSelected: selectedOptions.contains(14),
-                    action: { if !isTransitioning { toggleSelection(14) } }
-                )
-                
-                SelectionOption(
-                    icon: "✨",
-                    text: "Lowkey trying to become that *person*",
-                    isSelected: selectedOptions.contains(15),
-                    action: { if !isTransitioning { toggleSelection(15) } }
-                )
-            }
-            .padding(.horizontal, 20)
-            
-            Spacer()
-        }
-    }
-    
-    private func toggleSelection(_ index: Int) {
-        selectedOptions.removeAll { $0 >= 12 && $0 <= 15 } // Clear previous selections for panel 1
-        selectedOptions.append(index)
-        
-        // Set transitioning state to prevent further selections
-        isTransitioning = true
-        
-        // Auto-advance to next panel after a short delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                currentPanel += 1
-                isTransitioning = false // Reset transitioning state
-            }
-        }
-    }
-}
+// MARK: - Generic Onboarding Panel
 
-// MARK: - Panel 2: What's your why
-struct Panel2View: View {
-    @Binding var selectedOptions: [Int]
-    @Binding var currentPanel: Int
-    @Binding var isTransitioning: Bool
-    
+struct OnboardingPanel: View {
+    let step: OnboardingStep
+    let options: [Option]
+    @Binding var selectedID: Int?
+    let onSelect: (Int) -> Void
+
     var body: some View {
         VStack(spacing: 25) {
             Spacer()
-            
-            // Main heading
+
             VStack(spacing: 15) {
-                Text("What's your \"why\" for showing up?")
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                Text(step.title)
+                    .font(step.titleFont)
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
-                
-                Text("(Yes, existential dread counts.)")
-                    .font(.subheadline)
-                    .foregroundColor(.gold)
-                    .italic()
+
+                if let subtitle = step.subtitle {
+                    if step == .fitness {
+                        Text(subtitle)
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundColor(.gold)
+                            .tracking(2)
+                    } else {
+                        Text(subtitle)
+                            .font(.subheadline)
+                            .foregroundColor(.gold)
+                            .italic()
+                    }
+                }
+
+                if step == .fitness {
+                    Text("What kind of progress are you secretly hoping to see?")
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.8))
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 8)
+                }
             }
-            
-            // Options
+
             VStack(spacing: 12) {
-                SelectionOption(
-                    icon: "✅",
-                    text: "I like structure and progress",
-                    isSelected: selectedOptions.contains(0),
-                    action: { if !isTransitioning { toggleSelection(0) } }
-                )
-                
-                SelectionOption(
-                    icon: "🎭",
-                    text: "I want to impress someone (maybe myself)",
-                    isSelected: selectedOptions.contains(1),
-                    action: { if !isTransitioning { toggleSelection(1) } }
-                )
-                
-                SelectionOption(
-                    icon: "🧃",
-                    text: "I want to feel better (emotionally, physically, spiritually, digestively)",
-                    isSelected: selectedOptions.contains(2),
-                    action: { if !isTransitioning { toggleSelection(2) } }
-                )
-                
-                SelectionOption(
-                    icon: "❓",
-                    text: "Honestly, no clue — but I'm here, so let's see what happens",
-                    isSelected: selectedOptions.contains(3),
-                    action: { if !isTransitioning { toggleSelection(3) } }
-                )
+                ForEach(options) { option in
+                    SelectionOption(
+                        icon: option.icon,
+                        text: option.text,
+                        isSelected: selectedID == option.id,
+                        action: { onSelect(option.id) }
+                    )
+                }
             }
             .padding(.horizontal, 20)
-            
+
             Spacer()
-        }
-    }
-    
-    private func toggleSelection(_ index: Int) {
-        selectedOptions.removeAll { $0 >= 0 && $0 <= 3 }  // Clear previous selections
-        selectedOptions.append(index)
-        
-        // Set transitioning state to prevent further selections
-        isTransitioning = true
-        
-        // Auto-advance to next panel after a short delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                currentPanel += 1
-                isTransitioning = false // Reset transitioning state
-            }
         }
     }
 }
 
-// MARK: - Panel 3: Streak relationship
-struct Panel3View: View {
-    @Binding var selectedOptions: [Int]
-    @Binding var currentPanel: Int
-    @Binding var isTransitioning: Bool
-    
+// MARK: - Final Panel
+
+struct FinalPanel: View {
     var body: some View {
         VStack(spacing: 25) {
             Spacer()
-            
-            // Main heading
-            VStack(spacing: 15) {
-                Text("When it comes to streaks, what's your relationship status?")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
-                
-                Text("(We're all commitment-phobic at some point. It's okay.)")
-                    .font(.subheadline)
-                    .foregroundColor(.gold)
-                    .italic()
-            }
-            
-            // Options
-            VStack(spacing: 12) {
-                SelectionOption(
-                    icon: "🔓",
-                    text: "\"Day one\" is my natural habitat",
-                    isSelected: selectedOptions.contains(4),
-                    action: { if !isTransitioning { toggleSelection(4) } }
-                )
-                
-                SelectionOption(
-                    icon: "🫣",
-                    text: "I ghost after 3 days, but I come back eventually",
-                    isSelected: selectedOptions.contains(5),
-                    action: { if !isTransitioning { toggleSelection(5) } }
-                )
-                
-                SelectionOption(
-                    icon: "🧱",
-                    text: "I'm ready to build something steady — like a responsible adult (kind of)",
-                    isSelected: selectedOptions.contains(6),
-                    action: { if !isTransitioning { toggleSelection(6) } }
-                )
-                
-                SelectionOption(
-                    icon: "🔥",
-                    text: "I'm unhinged and addicted to green checkmarks",
-                    isSelected: selectedOptions.contains(7),
-                    action: { if !isTransitioning { toggleSelection(7) } }
-                )
-            }
-            .padding(.horizontal, 20)
-            
-            Spacer()
-        }
-    }
-    
-    private func toggleSelection(_ index: Int) {
-        selectedOptions.removeAll { $0 >= 4 && $0 <= 7 } // Clear previous selections
-        selectedOptions.append(index)
-        
-        // Set transitioning state to prevent further selections
-        isTransitioning = true
-        
-        // Auto-advance to next panel after a short delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                currentPanel += 1
-                isTransitioning = false // Reset transitioning state
-            }
-        }
-    }
-}
 
-
-
-// MARK: - Panel 5: Daily challenges
-struct Panel5View: View {
-    @Binding var selectedOptions: [Int]
-    @Binding var currentPanel: Int
-    @Binding var isTransitioning: Bool
-    
-    var body: some View {
-        VStack(spacing: 25) {
-            Spacer()
-            
-            // Main heading
-            VStack(spacing: 15) {
-                Text("You've got 15 minutes a day. Be honest — what are we up against?")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
-                
-                Text("(We respect your battle.)")
-                    .font(.subheadline)
-                    .foregroundColor(.gold)
-                    .italic()
-            }
-            
-            // Options
-            VStack(spacing: 12) {
-                SelectionOption(
-                    icon: "🛋️",
-                    text: "The gravitational pull of my couch",
-                    isSelected: selectedOptions.contains(8),
-                    action: { if !isTransitioning { toggleSelection(8) } }
-                )
-                
-                SelectionOption(
-                    icon: "📱",
-                    text: "An endless scroll that started \"just for a sec\"",
-                    isSelected: selectedOptions.contains(9),
-                    action: { if !isTransitioning { toggleSelection(9) } }
-                )
-                
-                SelectionOption(
-                    icon: "🧩",
-                    text: "Literally every other responsibility in my life",
-                    isSelected: selectedOptions.contains(10),
-                    action: { if !isTransitioning { toggleSelection(10) } }
-                )
-                
-                SelectionOption(
-                    icon: "💪",
-                    text: "Nothing. This is my time now",
-                    isSelected: selectedOptions.contains(11),
-                    action: { if !isTransitioning { toggleSelection(11) } }
-                )
-            }
-            .padding(.horizontal, 20)
-            
-            Spacer()
-        }
-    }
-    
-    private func toggleSelection(_ index: Int) {
-        selectedOptions.removeAll { $0 >= 8 && $0 <= 11 } // Clear previous selections
-        selectedOptions.append(index)
-        
-        // Set transitioning state to prevent further selections
-        isTransitioning = true
-        
-        // Auto-advance to next panel after a short delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                currentPanel += 1
-                isTransitioning = false // Reset transitioning state
-            }
-        }
-    }
-}
-
-// MARK: - Panel 6: Final motivation
-struct Panel6View: View {
-    var body: some View {
-        VStack(spacing: 25) {
-            Spacer()
-            
-            // Main heading
             VStack(spacing: 15) {
                 Text("Ready to build your city?")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
-                
+
                 Text("Your journey starts now.")
                     .font(.title3)
                     .foregroundColor(.gold)
             }
-            
-            // Final motivation card
+
             GlassCard {
                 VStack(spacing: 20) {
                     Image(systemName: "building.2.fill")
                         .font(.system(size: 50))
                         .foregroundColor(.gold)
-                    
+
                     Text("Every step counts. Every run builds. Every streak matters.")
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
-                    
+
                     Text("Let's make discipline feel different.")
                         .font(.headline)
                         .foregroundColor(.gold)
@@ -441,60 +322,52 @@ struct Panel6View: View {
                 }
                 .padding(25)
             }
-            
+
             Spacer()
         }
         .padding(.horizontal, 30)
     }
 }
 
-// MARK: - Navigation Buttons
+// MARK: - Navigation
+
 struct NavigationButtons: View {
-    @Binding var currentPanel: Int
-    let totalPanels: Int
-    @Binding var showingMainApp: Bool
-    
+    let currentIndex: Int
+    let total: Int
+    let onBack: () -> Void
+    let onNext: () -> Void
+    let onStart: () -> Void
+
     var body: some View {
         HStack(spacing: 20) {
-            if currentPanel > 0 {
-                Button("Back") {
-                    withAnimation(.easeInOut(duration: 0.5)) {
-                        currentPanel -= 1
-                    }
-                }
-                .buttonStyle(GlassButtonStyle())
+            if currentIndex > 0 {
+                Button("Back", action: onBack)
+                    .buttonStyle(GlassButtonStyle())
             }
-            
+
             Spacer()
-            
-            if currentPanel < totalPanels - 1 {
-                                    Button("Next") {
-                        withAnimation(.easeInOut(duration: 0.5)) {
-                            currentPanel += 1
-                        }
-                    }
-                .buttonStyle(GlassButtonStyle())
+
+            if currentIndex < total - 1 {
+                Button("Next", action: onNext)
+                    .buttonStyle(GlassButtonStyle())
             } else {
-                Button("Start Building") {
-                    withAnimation(.easeInOut(duration: 0.8)) {
-                        showingMainApp = true
-                    }
-                }
-                .buttonStyle(GlassButtonStyle())
+                Button("Start Building", action: onStart)
+                    .buttonStyle(GlassButtonStyle())
             }
         }
         .padding(.horizontal, 20)
     }
 }
 
-// MARK: - Supporting Views
+// MARK: - Reusable bits
+
 struct GlassCard<Content: View>: View {
     let content: Content
-    
+
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
     }
-    
+
     var body: some View {
         content
             .background(
@@ -502,10 +375,7 @@ struct GlassCard<Content: View>: View {
                     .fill(Color.black.opacity(0.3))
                     .overlay(
                         RoundedRectangle(cornerRadius: 25)
-                            .stroke(
-                                Color.gold.opacity(0.4),
-                                lineWidth: 1
-                            )
+                            .stroke(Color.gold.opacity(0.4), lineWidth: 1)
                     )
                     .shadow(color: .gold.opacity(0.3), radius: 10, x: 0, y: 5)
             )
@@ -532,44 +402,25 @@ struct GlassButtonStyle: ButtonStyle {
     }
 }
 
-struct ProgressOption: View {
-    let text: String
-    
-    var body: some View {
-        HStack {
-            Text(text)
-                .font(.body)
-                .foregroundColor(.white.opacity(0.9))
-                .multilineTextAlignment(.leading)
-            Spacer()
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 15)
-                .fill(Color.white.opacity(0.05))
-        )
-    }
-}
-
 struct SelectionOption: View {
     let icon: String
     let text: String
     let isSelected: Bool
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 15) {
                 Text(icon)
                     .font(.title2)
-                
+
                 Text(text)
                     .font(.body)
                     .foregroundColor(.white.opacity(0.9))
                     .multilineTextAlignment(.leading)
-                
+
                 Spacer()
-                
+
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.gold)
@@ -590,27 +441,86 @@ struct SelectionOption: View {
     }
 }
 
-// MARK: - Color Extensions
 extension Color {
     static let gold = Color(red: 1.0, green: 0.84, blue: 0.0)
 }
 
 // MARK: - Main App View (Placeholder)
+
+// MARK: - Main App View (Improved Welcome Screen)
+
 struct MainAppView: View {
+    @State private var pulse = false
+
     var body: some View {
-        VStack {
-            Text("Welcome to CRDO!")
-                .font(.largeTitle)
-                .foregroundColor(.white)
-            Text("Your city awaits...")
-                .font(.title2)
-                .foregroundColor(.gold)
+        ZStack {
+            LinearGradient(
+                gradient: Gradient(colors: [Color.black, Color.black.opacity(0.85)]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 30) {
+                Spacer()
+
+                VStack(spacing: 10) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gold)
+                        .scaleEffect(pulse ? 1.05 : 0.95)
+                        .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: pulse)
+
+                    Text("Welcome to CRDO")
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+
+                    Text("Your city awaits...")
+                        .font(.title3)
+                        .foregroundColor(.gold)
+                        .italic()
+                }
+
+                GlassCard {
+                    VStack(spacing: 16) {
+                        Text("Start strong. Build daily. Earn every block.")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+
+                        Text("This is fitness with a purpose.")
+                            .font(.subheadline)
+                            .foregroundColor(.gold)
+                            .italic()
+                    }
+                    .padding(25)
+                }
+
+                Spacer()
+
+                Button(action: {
+                    // Placeholder action (can route to dashboard)
+                }) {
+                    Text("Enter Your City")
+                        .font(.headline)
+                        .padding(.horizontal, 40)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(GlassButtonStyle())
+                .padding(.bottom, 40)
+            }
+            .padding(.horizontal, 30)
+            .onAppear {
+                pulse = true
+            }
         }
-        .frame(maxWidth: .infinity)
-        .background(Color.black)
     }
 }
+
+// MARK: - Preview
 
 #Preview {
     ContentView()
 }
+
