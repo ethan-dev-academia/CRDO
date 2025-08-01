@@ -192,6 +192,7 @@ final class OnboardingViewModel: ObservableObject {
 
 struct ContentView: View {
     @StateObject private var vm = OnboardingViewModel()
+    @StateObject private var authTracker = AuthenticationTracker.shared
 
     var body: some View {
         ZStack {
@@ -202,8 +203,11 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
 
-            if vm.showingMainApp || vm.userPreferences.onboardingCompleted {
-                MainAppView(userPreferences: vm.userPreferences)
+            if !authTracker.isAuthenticated {
+                AuthenticationView(authTracker: authTracker)
+                    .transition(.opacity.combined(with: .scale))
+            } else if vm.showingMainApp || vm.userPreferences.onboardingCompleted {
+                MainAppView(userPreferences: vm.userPreferences, authTracker: authTracker)
                     .transition(.opacity.combined(with: .scale))
             } else {
                 VStack(spacing: 0) {
@@ -626,6 +630,7 @@ struct ProgressSection: View {
     let isActive: Bool
     let onStart: () -> Void
     let onStop: () -> Void
+    let onWorkoutMap: () -> Void
     let currentStreak: Int
     
     @State private var glowAnimation = false
@@ -731,83 +736,147 @@ struct ProgressSection: View {
                 }
             }
             
-            // Progress Bar
+
+            
+            // Compact Glassy Button Grid
             VStack(spacing: 12) {
-                HStack {
-                    Text("Progress")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    
-                    Spacer()
-                    
-                    Text("\(progressPercentage)% Complete")
-                        .font(.subheadline)
-                        .foregroundColor(.gold)
+                // Main Workout Button
+                Button(action: {
+                    onWorkoutMap()
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: isActive ? "pause.fill" : "play.fill")
+                            .font(.title2)
+                        
+                        Text(isActive ? "Pause" : "Start Workout")
+                            .font(.headline)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 30)
+                    .padding(.vertical, 15)
+                    .background(
+                        RoundedRectangle(cornerRadius: 25)
+                            .fill(isActive ? Color.red.opacity(0.3) : Color.gold.opacity(0.3))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 25)
+                                    .stroke(isActive ? Color.red.opacity(0.6) : Color.gold.opacity(0.6), lineWidth: 1.5)
+                            )
+                            .background(
+                                RoundedRectangle(cornerRadius: 25)
+                                    .fill(Color.black.opacity(0.2))
+                                    .blur(radius: 10)
+                            )
+                    )
+                    .scaleEffect(pulseAnimation ? 1.05 : 1.0)
+                    .animation(.easeInOut(duration: 0.3), value: pulseAnimation)
                 }
                 
-                // Animated progress bar
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(height: 20)
-                    
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [.gold, .orange]),
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: CGFloat(progress) * (UIScreen.main.bounds.width - 60), height: 20)
-                        .animation(.easeInOut(duration: 0.5), value: progress)
-                    
-                    // Shimmer effect
-                    if isActive {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [Color.clear, Color.white.opacity(0.3), Color.clear]),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
+                // Secondary Buttons Grid
+                LazyVGrid(columns: [
+                    GridItem(.flexible()),
+                    GridItem(.flexible())
+                ], spacing: 12) {
+                    // Workout History
+                    Button(action: {
+                        // Placeholder action for workout history
+                    }) {
+                        VStack(spacing: 8) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.title3)
+                                .foregroundColor(.gold)
+                            
+                            Text("HISTORY")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.black.opacity(0.3))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color.gold.opacity(0.4), lineWidth: 1)
                                 )
-                            )
-                            .frame(width: 60, height: 20)
-                            .offset(x: -30)
-                            .animation(.linear(duration: 2).repeatForever(autoreverses: false), value: glowAnimation)
-                    }
-                }
-            }
-            .padding(.horizontal, 30)
-            
-            // Control Button
-            Button(action: {
-                if isActive {
-                    onStop()
-                } else {
-                    onStart()
-                }
-            }) {
-                HStack(spacing: 12) {
-                    Image(systemName: isActive ? "pause.fill" : "play.fill")
-                        .font(.title2)
-                    
-                    Text(isActive ? "Pause" : "Start Workout")
-                        .font(.headline)
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 30)
-                .padding(.vertical, 15)
-                .background(
-                    RoundedRectangle(cornerRadius: 25)
-                        .fill(isActive ? Color.red.opacity(0.8) : Color.gold.opacity(0.8))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 25)
-                                .stroke(Color.gold, lineWidth: 1)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(Color.black.opacity(0.1))
+                                        .blur(radius: 5)
+                                )
                         )
-                )
-                .scaleEffect(pulseAnimation ? 1.05 : 1.0)
-                .animation(.easeInOut(duration: 0.3), value: pulseAnimation)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    // Personal Stats
+                    Button(action: {
+                        // Placeholder action for personal stats
+                    }) {
+                        VStack(spacing: 8) {
+                            Image(systemName: "chart.bar.fill")
+                                .font(.title3)
+                                .foregroundColor(.gold)
+                            
+                            Text("STATS")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.black.opacity(0.3))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color.gold.opacity(0.4), lineWidth: 1)
+                                )
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(Color.black.opacity(0.1))
+                                        .blur(radius: 5)
+                                )
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    // Personal Development
+                    Button(action: {
+                        // Placeholder action for personal development
+                    }) {
+                        VStack(spacing: 8) {
+                            Image(systemName: "brain.head.profile")
+                                .font(.title3)
+                                .foregroundColor(.gold)
+                            
+                            Text("DEVELOPMENT")
+                                .font(.caption)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.black.opacity(0.3))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color.gold.opacity(0.4), lineWidth: 1)
+                                )
+                                .background(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .fill(Color.black.opacity(0.1))
+                                        .blur(radius: 5)
+                                )
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    // Placeholder for future button or spacing
+                    Color.clear
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                }
             }
             
         }
@@ -941,46 +1010,148 @@ struct StreakCard: View {
 }
 
 struct WeeklyProgressView: View {
-    @State private var weekData = [3, 5, 2, 7, 4, 6, 1] // Days active this week
-    @State private var barAnimation = false
+    // Sample data for 3 months (12 weeks) - 0 = no workout, 1-4 = workout intensity
+    @State private var heatmapData: [[Int]] = [
+        [0, 1, 2, 3, 1, 0, 2], // Week 1
+        [1, 3, 2, 4, 1, 2, 0], // Week 2
+        [2, 1, 3, 2, 1, 0, 1], // Week 3
+        [0, 2, 1, 3, 2, 1, 0], // Week 4
+        [1, 0, 2, 1, 3, 2, 1], // Week 5
+        [2, 1, 0, 2, 1, 3, 2], // Week 6
+        [1, 2, 1, 0, 2, 1, 3], // Week 7
+        [0, 1, 2, 1, 0, 2, 1], // Week 8
+        [2, 0, 1, 2, 1, 0, 2], // Week 9
+        [1, 2, 0, 1, 2, 1, 0], // Week 10
+        [0, 1, 2, 0, 1, 2, 1], // Week 11
+        [2, 1, 0, 2, 1, 0, 1]  // Week 12 (current week)
+    ]
+    @State private var animationDelay = 0.0
+    @State private var selectedDay: (week: Int, day: Int)? = nil
     
     private var maxValue: Int {
-        weekData.max() ?? 1
+        heatmapData.flatMap { $0 }.max() ?? 1
+    }
+    
+    private func getColorForValue(_ value: Int) -> Color {
+        switch value {
+        case 0:
+            return Color.gray.opacity(0.2)
+        case 1:
+            return Color.gold.opacity(0.3)
+        case 2:
+            return Color.gold.opacity(0.5)
+        case 3:
+            return Color.gold.opacity(0.7)
+        case 4:
+            return Color.gold.opacity(0.9)
+        default:
+            return Color.gray.opacity(0.2)
+        }
+    }
+    
+    private func getDayLabel(_ weekIndex: Int, _ dayIndex: Int) -> String {
+        let dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        return dayNames[dayIndex]
+    }
+    
+    private func getMonthLabel(_ weekIndex: Int) -> String {
+        let monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        // Calculate which month this week belongs to (simplified)
+        let monthIndex = weekIndex / 4
+        return monthNames[monthIndex % 12]
     }
     
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             HStack {
-                Text("This Week")
+                Text("Last 3 Months")
                     .font(.caption2)
                     .foregroundColor(.white.opacity(0.8))
                 
                 Spacer()
                 
-                Text("\(weekData.reduce(0, +)) workouts")
+                Text("\(heatmapData.flatMap { $0 }.filter { $0 > 0 }.count) workouts")
                     .font(.caption2)
                     .foregroundColor(.gold)
             }
             
-            // Weekly bars
+            // GitHub-style heatmap with 3 months (horizontal layout)
             HStack(spacing: 3) {
-                ForEach(Array(weekData.enumerated()), id: \.offset) { index, value in
-                    VStack(spacing: 1) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(value > 0 ? Color.gold : Color.gray.opacity(0.3))
-                            .frame(height: CGFloat(value) / CGFloat(maxValue) * 24)
-                            .animation(.easeInOut(duration: 0.5).delay(Double(index) * 0.1), value: barAnimation)
-                        
-                        Text(["S", "M", "T", "W", "T", "F", "S"][index])
-                            .font(.caption2)
-                            .foregroundColor(.gray)
+                ForEach(Array(heatmapData.enumerated()), id: \.offset) { weekIndex, week in
+                    VStack(spacing: 3) {
+                        ForEach(Array(week.enumerated()), id: \.offset) { dayIndex, value in
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(getColorForValue(value))
+                                .frame(width: 10, height: 10)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                                )
+                                .scaleEffect(animationDelay > Double(weekIndex * 7 + dayIndex) * 0.05 ? 1.0 : 0.8)
+                                .animation(.easeInOut(duration: 0.3).delay(Double(weekIndex * 7 + dayIndex) * 0.01), value: animationDelay)
+                                .onTapGesture {
+                                    selectedDay = (weekIndex, dayIndex)
+                                }
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .stroke(selectedDay?.week == weekIndex && selectedDay?.day == dayIndex ? Color.gold : Color.clear, lineWidth: 2)
+                                )
+                        }
                     }
                 }
+            }
+            
+            // Selected day info
+            if let selected = selectedDay {
+                let value = heatmapData[selected.week][selected.day]
+                let dayLabel = getDayLabel(selected.week, selected.day)
+                let monthLabel = getMonthLabel(selected.week)
+                
+                HStack {
+                    Text("\(monthLabel) \(dayLabel)")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.8))
+                    
+                    Spacer()
+                    
+                    Text(value > 0 ? "\(value) workout\(value == 1 ? "" : "s")" : "No workout")
+                        .font(.caption2)
+                        .foregroundColor(value > 0 ? .gold : .gray)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.black.opacity(0.3))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.gold.opacity(0.3), lineWidth: 1)
+                        )
+                )
+            }
+            
+            // Legend
+            HStack(spacing: 8) {
+                Text("Less")
+                    .font(.caption2)
+                    .foregroundColor(.gray)
+                
+                HStack(spacing: 2) {
+                    ForEach(0..<5, id: \.self) { intensity in
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(getColorForValue(intensity))
+                            .frame(width: 8, height: 8)
+                    }
+                }
+                
+                Text("More")
+                    .font(.caption2)
+                    .foregroundColor(.gray)
             }
         }
         .padding(.horizontal, 2)
         .onAppear {
-            barAnimation = true
+            animationDelay = 1.0
         }
     }
 }
@@ -989,6 +1160,7 @@ struct WeeklyProgressView: View {
 
 struct UserSettingsView: View {
     let userPreferences: UserPreferences
+    let authTracker: AuthenticationTracker
     @Environment(\.dismiss) private var dismiss
     @State private var selectedTab = 0
     
@@ -1052,7 +1224,7 @@ struct UserSettingsView: View {
                     ProfileStatisticsTab(userPreferences: userPreferences)
                         .tag(0)
                     
-                    UserSettingsTab()
+                    UserSettingsTab(authTracker: authTracker)
                         .tag(1)
                 }
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
@@ -1091,6 +1263,7 @@ struct TabButton: View {
 // MARK: - User Settings Tab
 
 struct UserSettingsTab: View {
+    let authTracker: AuthenticationTracker
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
@@ -1116,6 +1289,39 @@ struct UserSettingsTab: View {
                 .padding(.horizontal, 20)
                 
                 // Additional settings cards can be added here
+                GlassCard {
+                    VStack(spacing: 16) {
+                        Image(systemName: "person.fill.xmark")
+                            .font(.system(size: 40))
+                            .foregroundColor(.red)
+                        
+                        Text("Sign Out")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                        
+                        Text("Sign out of your CRDO account.")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                            .multilineTextAlignment(.center)
+                        
+                        Button("Sign Out") {
+                            authTracker.signOut()
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 30)
+                        .padding(.vertical, 15)
+                        .background(
+                            RoundedRectangle(cornerRadius: 25)
+                                .fill(Color.red.opacity(0.8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 25)
+                                        .stroke(Color.red, lineWidth: 1)
+                                )
+                        )
+                    }
+                    .padding(20)
+                }
             }
             .padding(.top, 20)
         }
@@ -1168,12 +1374,14 @@ struct ProfileStatisticsTab: View {
 
 struct MainAppView: View {
     let userPreferences: UserPreferences
+    let authTracker: AuthenticationTracker
     @State private var pulse = false
     @State private var progressAnimation = false
     @State private var currentProgress: Double = 0.0
     @State private var timeElapsed: Int = 0
     @State private var isActive = false
     @State private var showingUserSettings = false
+    @State private var showingWorkoutMap = false
     @State private var currentStreak = 7 // Shared streak data
     @StateObject private var notificationManager = NotificationManager.shared
     
@@ -1197,36 +1405,12 @@ struct MainAppView: View {
                     isActive: isActive,
                     onStart: { startWorkout() },
                     onStop: { stopWorkout() },
+                    onWorkoutMap: { showingWorkoutMap = true },
                     currentStreak: currentStreak
                 )
                 
                 // Bottom Section (40% of screen)
                 VStack(spacing: 12) {
-                    // CRDO Playgrounds Button
-                Button(action: {
-                        // Placeholder action for CRDO Playgrounds
-                }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "gamecontroller.fill")
-                                .font(.title3)
-                            
-                            Text("CRDO Playgrounds")
-                        .font(.headline)
-                        }
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 30)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 25)
-                                .fill(Color.purple.opacity(0.8))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 25)
-                                        .stroke(Color.purple, lineWidth: 1)
-                                )
-                        )
-                }
-                    .buttonStyle(PlainButtonStyle())
-                    
                     // Streaks Section
                     StreaksSection(currentStreak: currentStreak)
             .padding(.horizontal, 30)
@@ -1257,7 +1441,10 @@ struct MainAppView: View {
             }
         }
         .sheet(isPresented: $showingUserSettings) {
-            UserSettingsView(userPreferences: userPreferences)
+            UserSettingsView(userPreferences: userPreferences, authTracker: authTracker)
+        }
+        .fullScreenCover(isPresented: $showingWorkoutMap) {
+            WorkoutMapView()
         }
         .statusBarHidden(true)
     }
@@ -1364,11 +1551,29 @@ class NotificationManager: ObservableObject {
             identifier: "morning-crdo"
         )
         
-        // Schedule evening notification (5 PM)
+        // Schedule late morning notification (11 AM)
         scheduleNotification(
             title: "CRDO",
-            body: eveningMessages.randomElement() ?? "Still time to workout!",
-            hour: 17,
+            body: morningMessages.randomElement() ?? "Still time to workout!",
+            hour: 11,
+            minute: 0,
+            identifier: "late-morning-crdo"
+        )
+        
+        // Schedule afternoon notification (3 PM)
+        scheduleNotification(
+            title: "CRDO",
+            body: eveningMessages.randomElement() ?? "Afternoon energy boost!",
+            hour: 15,
+            minute: 0,
+            identifier: "afternoon-crdo"
+        )
+        
+        // Schedule evening notification (7 PM)
+        scheduleNotification(
+            title: "CRDO",
+            body: eveningMessages.randomElement() ?? "Evening workout time!",
+            hour: 19,
             minute: 0,
             identifier: "evening-crdo"
         )
@@ -1415,6 +1620,310 @@ class NotificationManager: ObservableObject {
         let request = UNNotificationRequest(identifier: "streak-\(Date().timeIntervalSince1970)", content: content, trigger: trigger)
         
         UNUserNotificationCenter.current().add(request)
+    }
+}
+
+// MARK: - Authentication View
+
+struct AuthenticationView: View {
+    let authTracker: AuthenticationTracker
+    @State private var isSignUp = false
+    @State private var email = ""
+    @State private var password = ""
+    @State private var confirmPassword = ""
+    @State private var showingPassword = false
+    @State private var showingConfirmPassword = false
+    @State private var rememberMe = false
+    @State private var animationOffset: CGFloat = 1000
+    @State private var keyboardHeight: CGFloat = 0
+    
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                gradient: Gradient(colors: [Color.black, Color.black.opacity(0.9)]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header
+                VStack(spacing: 15) {
+                    // App Logo/Title
+                    VStack(spacing: 12) {
+                        Image(systemName: "building.2.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(.gold)
+                            .scaleEffect(animationOffset == 0 ? 1.0 : 0.5)
+                            .animation(.spring(response: 0.6, dampingFraction: 0.8), value: animationOffset)
+                        
+                        Text("CRDO")
+                            .font(.system(size: 42, weight: .bold, design: .rounded))
+                            .foregroundColor(.gold)
+                            .opacity(animationOffset == 0 ? 1.0 : 0.0)
+                            .animation(.easeInOut(duration: 0.8).delay(0.2), value: animationOffset)
+                        
+                        Text("Discipline built differently. Welcome to your new habit: CRDO.")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                            .opacity(animationOffset == 0 ? 1.0 : 0.0)
+                            .animation(.easeInOut(duration: 0.8).delay(0.4), value: animationOffset)
+                    }
+                    .padding(.top, 40)
+                    
+                    Spacer()
+                    
+                    // Auth Form
+                    VStack(spacing: 20) {
+                        // Email Field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Email")
+                                .font(.caption)
+                                .foregroundColor(.gold)
+                                .fontWeight(.semibold)
+                            
+                            TextField("Enter your email", text: $email)
+                                .textFieldStyle(AuthTextFieldStyle())
+                                .keyboardType(.emailAddress)
+                                .autocapitalization(.none)
+                        }
+                        
+                        // Password Field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Password")
+                                .font(.caption)
+                                .foregroundColor(.gold)
+                                .fontWeight(.semibold)
+                            
+                            HStack {
+                                if showingPassword {
+                                    TextField("Enter your password", text: $password)
+                                        .textFieldStyle(AuthTextFieldStyle())
+                                } else {
+                                    SecureField("Enter your password", text: $password)
+                                        .textFieldStyle(AuthTextFieldStyle())
+                                }
+                                
+                                Button(action: {
+                                    showingPassword.toggle()
+                                }) {
+                                    Image(systemName: showingPassword ? "eye.slash.fill" : "eye.fill")
+                                        .foregroundColor(.gray)
+                                        .font(.title3)
+                                }
+                            }
+                        }
+                        
+                        // Confirm Password Field (Sign Up only)
+                        if isSignUp {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Confirm Password")
+                                    .font(.caption)
+                                    .foregroundColor(.gold)
+                                    .fontWeight(.semibold)
+                                
+                                HStack {
+                                    if showingConfirmPassword {
+                                        TextField("Confirm your password", text: $confirmPassword)
+                                            .textFieldStyle(AuthTextFieldStyle())
+                                    } else {
+                                        SecureField("Confirm your password", text: $confirmPassword)
+                                            .textFieldStyle(AuthTextFieldStyle())
+                                    }
+                                    
+                                    Button(action: {
+                                        showingConfirmPassword.toggle()
+                                    }) {
+                                        Image(systemName: showingConfirmPassword ? "eye.slash.fill" : "eye.fill")
+                                            .foregroundColor(.gray)
+                                            .font(.title3)
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Remember Me Toggle
+                        HStack {
+                            Button(action: {
+                                rememberMe.toggle()
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: rememberMe ? "checkmark.square.fill" : "square")
+                                        .foregroundColor(rememberMe ? .gold : .gray)
+                                        .font(.title3)
+                                    
+                                    Text("Remember me for 2 weeks")
+                                        .font(.caption)
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
+                            Spacer()
+                        }
+                        
+                        // Action Button
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.5)) {
+                                authTracker.signIn(rememberMe: rememberMe)
+                            }
+                        }) {
+                            Text(isSignUp ? "Sign Up" : "Sign In")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 15)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 25)
+                                        .fill(Color.gold.opacity(0.8))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 25)
+                                                .stroke(Color.gold, lineWidth: 1)
+                                        )
+                                )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .padding(.top, 10)
+                        
+                        // Toggle Sign In/Sign Up
+                        Button(action: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isSignUp.toggle()
+                                email = ""
+                                password = ""
+                                confirmPassword = ""
+                                rememberMe = false
+                            }
+                        }) {
+                            Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
+                                .font(.caption)
+                                .foregroundColor(.gold.opacity(0.8))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .padding(.horizontal, 30)
+                    .opacity(animationOffset == 0 ? 1.0 : 0.0)
+                    .animation(.easeInOut(duration: 0.8).delay(0.6), value: animationOffset)
+                    
+                    Spacer()
+                }
+                .offset(y: -keyboardHeight * 0.3) // Shift content up when keyboard appears
+            }
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.8)) {
+                animationOffset = 0
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
+            if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    keyboardHeight = keyboardFrame.height
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            withAnimation(.easeInOut(duration: 0.3)) {
+                keyboardHeight = 0
+            }
+        }
+    }
+}
+
+// MARK: - Auth Text Field Style
+
+struct AuthTextFieldStyle: TextFieldStyle {
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.black.opacity(0.3))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.gold.opacity(0.3), lineWidth: 1)
+                    )
+            )
+            .foregroundColor(.white)
+    }
+}
+
+// MARK: - Authentication Tracker
+
+class AuthenticationTracker: ObservableObject {
+    static let shared = AuthenticationTracker()
+    
+    @Published var isAuthenticated = false
+    @Published var shouldShowAuth = true
+    
+    private let lastSignInKey = "lastSignInDate"
+    private let rememberMeKey = "rememberMe"
+    private let rememberMeDateKey = "rememberMeDate"
+    
+    init() {
+        checkAuthenticationStatus()
+    }
+    
+    func checkAuthenticationStatus() {
+        let lastSignIn = UserDefaults.standard.object(forKey: lastSignInKey) as? Date ?? Date.distantPast
+        let rememberMe = UserDefaults.standard.bool(forKey: rememberMeKey)
+        let rememberMeDate = UserDefaults.standard.object(forKey: rememberMeDateKey) as? Date ?? Date.distantPast
+        
+        let now = Date()
+        
+        if rememberMe {
+            // Check if within 2 weeks of remember me
+            let twoWeeksAgo = Calendar.current.date(byAdding: .day, value: -14, to: now) ?? now
+            if rememberMeDate > twoWeeksAgo {
+                isAuthenticated = true
+                shouldShowAuth = false
+                return
+            }
+        } else {
+            // Check if within 3 days of last sign in
+            let threeDaysAgo = Calendar.current.date(byAdding: .day, value: -3, to: now) ?? now
+            if lastSignIn > threeDaysAgo {
+                isAuthenticated = true
+                shouldShowAuth = false
+                return
+            }
+        }
+        
+        // Not authenticated, show auth screen
+        isAuthenticated = false
+        shouldShowAuth = true
+    }
+    
+    func signIn(rememberMe: Bool = false) {
+        let now = Date()
+        UserDefaults.standard.set(now, forKey: lastSignInKey)
+        
+        if rememberMe {
+            UserDefaults.standard.set(true, forKey: rememberMeKey)
+            UserDefaults.standard.set(now, forKey: rememberMeDateKey)
+        } else {
+            UserDefaults.standard.set(false, forKey: rememberMeKey)
+            UserDefaults.standard.removeObject(forKey: rememberMeDateKey)
+        }
+        
+        isAuthenticated = true
+        shouldShowAuth = false
+    }
+    
+    func signOut() {
+        UserDefaults.standard.removeObject(forKey: lastSignInKey)
+        UserDefaults.standard.removeObject(forKey: rememberMeKey)
+        UserDefaults.standard.removeObject(forKey: rememberMeDateKey)
+        
+        isAuthenticated = false
+        shouldShowAuth = true
+    }
+    
+    func getDaysSinceLastSignIn() -> Int {
+        let lastSignIn = UserDefaults.standard.object(forKey: lastSignInKey) as? Date ?? Date.distantPast
+        let now = Date()
+        return Calendar.current.dateComponents([.day], from: lastSignIn, to: now).day ?? 0
     }
 }
 
