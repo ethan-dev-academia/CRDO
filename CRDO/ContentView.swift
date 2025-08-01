@@ -8,6 +8,8 @@
 
 import SwiftUI
 import UserNotifications
+import CoreLocation
+import MapKit
 
 // MARK: - Models
 
@@ -632,6 +634,8 @@ struct ProgressSection: View {
     let onStop: () -> Void
     let onWorkoutMap: () -> Void
     let currentStreak: Int
+    @Binding var showingUserSettings: Bool
+    @Binding var userSettingsInitialTab: Int
     
     @State private var glowAnimation = false
     @State private var pulseAnimation = false
@@ -640,6 +644,14 @@ struct ProgressSection: View {
         let minutes = timeElapsed / 60
         let seconds = timeElapsed % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+    
+    private var progressTitle: String {
+        if isActive {
+            return "WORKOUT IN PROGRESS"
+        } else {
+            return "DAILY GOAL: 15 MIN"
+        }
     }
     
     private var progressPercentage: Int {
@@ -673,7 +685,7 @@ struct ProgressSection: View {
         VStack(spacing: 15) {
             // Header
             VStack(spacing: 8) {
-                Text(dynamicTitle)
+                Text(progressTitle)
                     .font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 
@@ -720,6 +732,11 @@ struct ProgressSection: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.gold)
                     
+                    Text("STREAK MAINTAINED: \(currentStreak)")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(.gold.opacity(0.8))
+                        .tracking(1)
+                    
                     if isActive {
                         HStack(spacing: 4) {
                             Circle()
@@ -742,13 +759,17 @@ struct ProgressSection: View {
             VStack(spacing: 12) {
                 // Main Workout Button
                 Button(action: {
-                    onWorkoutMap()
+                    if isActive {
+                        onStop()
+                    } else {
+                        onStart()
+                    }
                 }) {
                     HStack(spacing: 12) {
                         Image(systemName: isActive ? "pause.fill" : "play.fill")
                             .font(.title2)
                         
-                        Text(isActive ? "Pause" : "Start Workout")
+                        Text(isActive ? "Pause Workout" : "Start Workout")
                             .font(.headline)
                     }
                     .foregroundColor(.white)
@@ -778,7 +799,8 @@ struct ProgressSection: View {
                 ], spacing: 12) {
                     // Workout History
                     Button(action: {
-                        // Placeholder action for workout history
+                        userSettingsInitialTab = 0
+                        showingUserSettings = true
                     }) {
                         VStack(spacing: 8) {
                             Image(systemName: "clock.arrow.circlepath")
@@ -891,8 +913,7 @@ struct ProgressSection: View {
 
 struct StreaksSection: View {
     let currentStreak: Int
-    @State private var longestStreak = 12
-    @State private var totalWorkouts = 23
+    @StateObject private var workoutManager = WorkoutManager.shared
     @State private var streakAnimation = false
     @State private var flameAnimation = false
     
@@ -929,7 +950,7 @@ struct StreaksSection: View {
                 // Longest Streak
                 StreakCard(
                     title: "Longest",
-                    value: longestStreak,
+                    value: workoutManager.getLongestStreak(),
                     subtitle: "days",
                     icon: "🏆",
                     color: .gold,
@@ -939,7 +960,7 @@ struct StreaksSection: View {
                 // Total Workouts
                 StreakCard(
                     title: "Total",
-                    value: totalWorkouts,
+                    value: workoutManager.getTotalWorkouts(),
                     subtitle: "workouts",
                     icon: "💪",
                     color: .green,
@@ -1161,8 +1182,16 @@ struct WeeklyProgressView: View {
 struct UserSettingsView: View {
     let userPreferences: UserPreferences
     let authTracker: AuthenticationTracker
+    let initialTab: Int
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedTab = 0
+    @State private var selectedTab: Int
+    
+    init(userPreferences: UserPreferences, authTracker: AuthenticationTracker, initialTab: Int = 0) {
+        self.userPreferences = userPreferences
+        self.authTracker = authTracker
+        self.initialTab = initialTab
+        self._selectedTab = State(initialValue: initialTab)
+    }
     
     var body: some View {
         ZStack {
@@ -1264,9 +1293,11 @@ struct TabButton: View {
 
 struct UserSettingsTab: View {
     let authTracker: AuthenticationTracker
+    
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                
                 // Placeholder content for User Settings
                 GlassCard {
                     VStack(spacing: 16) {
@@ -1332,6 +1363,20 @@ struct UserSettingsTab: View {
 
 struct ProfileStatisticsTab: View {
     let userPreferences: UserPreferences
+    @StateObject private var workoutManager = WorkoutManager.shared
+    @State private var selectedWorkout: WorkoutSession?
+    @State private var showingWorkoutDetail = false
+    @State private var selectedCategory: RunCategory? = nil
+    
+    private var filteredWorkouts: [WorkoutSession] {
+        let sortedWorkouts = workoutManager.workoutHistory.sorted(by: { $0.startTime > $1.startTime })
+        
+        if let selectedCategory = selectedCategory {
+            return sortedWorkouts.filter { $0.runCategory == selectedCategory }
+        } else {
+            return sortedWorkouts
+        }
+    }
     
     var body: some View {
         ScrollView {
@@ -1342,33 +1387,1145 @@ struct ProfileStatisticsTab: View {
                         .padding(.horizontal, 20)
                 }
 
-                // Additional statistics can be added here
-                GlassCard {
-                    VStack(spacing: 16) {
-                        Image(systemName: "chart.bar.fill")
-                            .font(.system(size: 40))
-                            .foregroundColor(.gold)
-                        
-                        Text("Coming Soon")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-
-                        Text("Detailed statistics and progress tracking will be available here.")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
-                            .multilineTextAlignment(.center)
+                // Workout History
+                if !workoutManager.workoutHistory.isEmpty {
+                    GlassCard {
+                        VStack(spacing: 16) {
+                            HStack {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .font(.title2)
+                                    .foregroundColor(.gold)
+                                
+                                Text("Workout History")
+                                    .font(.headline)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                
+                                Spacer()
+                                
+                                Text("\(workoutManager.workoutHistory.count) workouts")
+                                    .font(.caption)
+                                    .foregroundColor(.gold)
+                            }
+                            
+                            // Category Filter
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    CategoryFilterButton(
+                                        title: "All",
+                                        isSelected: selectedCategory == nil,
+                                        action: { selectedCategory = nil }
+                                    )
+                                    
+                                    ForEach(RunCategory.allCases, id: \.self) { category in
+                                        CategoryFilterButton(
+                                            title: category.rawValue,
+                                            isSelected: selectedCategory == category,
+                                            action: { selectedCategory = category }
+                                        )
+                                    }
+                                }
+                                .padding(.horizontal, 4)
+                            }
+                            .padding(.vertical, 8)
+                            
+                            LazyVStack(spacing: 12) {
+                                ForEach(filteredWorkouts) { workout in
+                                    WorkoutHistoryRow(workout: workout)
+                                        .onTapGesture {
+                                            selectedWorkout = workout
+                                            showingWorkoutDetail = true
+                                        }
+                                }
+                            }
+                        }
+                        .padding(20)
                     }
-                    .padding(30)
+                    .padding(.horizontal, 20)
                 }
-                .padding(.horizontal, 20)
             }
             .padding(.top, 20)
-                    }
+        }
+        .sheet(isPresented: $showingWorkoutDetail) {
+            if let workout = selectedWorkout {
+                WorkoutDetailView(workout: workout)
+            }
+        }
     }
 }
 
-// MARK: - Main App View (Placeholder)
+// MARK: - Workout Models
+
+struct WorkoutSession: Identifiable, Codable {
+    let id: UUID
+    let startTime: Date
+    var endTime: Date?
+    var duration: TimeInterval
+    var distance: Double // in meters
+    var calories: Int
+    var averageHeartRate: Int?
+    var maxHeartRate: Int?
+    var route: [Coordinate]?
+    var workoutType: WorkoutType
+    var runCategory: RunCategory?
+    var isCompleted: Bool
+    
+    // Custom coordinate struct for Codable support
+    struct Coordinate: Codable {
+        let latitude: Double
+        let longitude: Double
+        
+        init(coordinate: CLLocationCoordinate2D) {
+            self.latitude = coordinate.latitude
+            self.longitude = coordinate.longitude
+        }
+        
+        var clCoordinate: CLLocationCoordinate2D {
+            CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        }
+    }
+    
+    enum WorkoutType: String, CaseIterable, Codable {
+        case running = "Running"
+        case walking = "Walking"
+        case cycling = "Cycling"
+        case cardio = "Cardio"
+        
+        var icon: String {
+            switch self {
+            case .running: return "figure.run"
+            case .walking: return "figure.walk"
+            case .cycling: return "bicycle"
+            case .cardio: return "heart.fill"
+            }
+        }
+        
+        var color: Color {
+            switch self {
+            case .running: return .orange
+            case .walking: return .green
+            case .cycling: return .blue
+            case .cardio: return .red
+            }
+        }
+    }
+    
+
+}
+
+// MARK: - Run Category
+
+enum RunCategory: String, CaseIterable, Codable {
+    case sprint = "Sprint"
+    case shortRun = "Short Run"
+    case mediumRun = "Medium Run"
+    case longRun = "Long Run"
+    case recoveryRun = "Recovery Run"
+    case tempoRun = "Tempo Run"
+    case easyRun = "Easy Run"
+    
+    var icon: String {
+        switch self {
+        case .sprint: return "bolt.fill"
+        case .shortRun: return "figure.run"
+        case .mediumRun: return "figure.run"
+        case .longRun: return "figure.run"
+        case .recoveryRun: return "heart.fill"
+        case .tempoRun: return "speedometer"
+        case .easyRun: return "figure.walk"
+        }
+    }
+    
+    var color: Color {
+        switch self {
+        case .sprint: return .red
+        case .shortRun: return .orange
+        case .mediumRun: return .yellow
+        case .longRun: return .blue
+        case .recoveryRun: return .green
+        case .tempoRun: return .purple
+        case .easyRun: return .mint
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .sprint: return "High intensity, short duration"
+        case .shortRun: return "Quick cardio session"
+        case .mediumRun: return "Moderate distance run"
+        case .longRun: return "Endurance building"
+        case .recoveryRun: return "Light, easy pace"
+        case .tempoRun: return "Sustained effort"
+        case .easyRun: return "Comfortable pace"
+        }
+    }
+}
+
+// MARK: - Workout Manager
+
+class WorkoutManager: NSObject, ObservableObject {
+    static let shared = WorkoutManager()
+    
+    @Published var isWorkoutActive = false
+    @Published var currentWorkout: WorkoutSession?
+    @Published var workoutHistory: [WorkoutSession] = []
+    @Published var currentLocation: CLLocation?
+    @Published var workoutType: WorkoutSession.WorkoutType = .running
+    @Published var elapsedTime: TimeInterval = 0
+    @Published var distance: Double = 0
+    @Published var calories: Int = 0
+    @Published var averagePace: Double = 0
+    @Published var currentPace: Double = 0
+    @Published var dailyGoalProgress: TimeInterval = 0
+    
+    let locationManager = CLLocationManager()
+    private var workoutTimer: Timer?
+    private var startLocation: CLLocation?
+    private var lastLocation: CLLocation?
+    @Published var routeCoordinates: [CLLocationCoordinate2D] = []
+    
+    override init() {
+        super.init()
+        setupLocationManager()
+        loadWorkoutHistory()
+        loadDailyGoalProgress()
+    }
+    
+    private func setupLocationManager() {
+        locationManager.delegate = self
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.distanceFilter = 5 // Update every 5 meters for more precision
+        locationManager.activityType = .fitness
+        // Disable background updates to avoid Core Location exception
+        // locationManager.allowsBackgroundLocationUpdates = true
+        locationManager.pausesLocationUpdatesAutomatically = false
+    }
+    
+    private func categorizeRun(duration: TimeInterval, distance: Double) -> RunCategory {
+        let durationMinutes = duration / 60.0
+        let distanceKm = distance / 1000.0
+        
+        // Calculate pace in minutes per kilometer
+        let paceMinutesPerKm = distanceKm > 0 ? durationMinutes / distanceKm : 0
+        
+        // Sprint: Very short duration, high intensity
+        if durationMinutes < 5 {
+            return .sprint
+        }
+        
+        // Short Run: 5-15 minutes
+        if durationMinutes < 15 {
+            return .shortRun
+        }
+        
+        // Recovery Run: Slow pace (slower than 6:30 per km)
+        if paceMinutesPerKm > 6.5 {
+            return .recoveryRun
+        }
+        
+        // Easy Run: Moderate pace (5:30-6:30 per km)
+        if paceMinutesPerKm > 5.5 {
+            return .easyRun
+        }
+        
+        // Tempo Run: Fast pace (4:30-5:30 per km)
+        if paceMinutesPerKm > 4.5 {
+            return .tempoRun
+        }
+        
+        // Long Run: Long duration (over 30 minutes)
+        if durationMinutes > 30 {
+            return .longRun
+        }
+        
+        // Medium Run: Everything else
+        return .mediumRun
+    }
+    
+    func startWorkout(type: WorkoutSession.WorkoutType = .running) {
+        guard !isWorkoutActive else { return }
+        
+        print("Starting workout: \(type.rawValue)")
+        
+        workoutType = type
+        isWorkoutActive = true
+        elapsedTime = 0
+        distance = 0
+        calories = 0
+        averagePace = 0
+        currentPace = 0
+        routeCoordinates.removeAll()
+        
+        // Check location authorization status first
+        let authStatus = locationManager.authorizationStatus
+        print("Current location authorization status: \(authStatus.rawValue)")
+        
+        // Request location permission and start tracking
+        locationManager.requestWhenInUseAuthorization()
+        
+        // Add a small delay to ensure authorization is processed
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            self.locationManager.startUpdatingLocation()
+            print("Location updates requested")
+        }
+        
+        // Start timer
+        workoutTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            self.elapsedTime += 1
+            self.updateCalories()
+            self.updatePace()
+        }
+        
+        // Create workout session
+        currentWorkout = WorkoutSession(
+            id: UUID(),
+            startTime: Date(),
+            endTime: nil,
+            duration: 0,
+            distance: 0,
+            calories: 0,
+            averageHeartRate: nil,
+            maxHeartRate: nil,
+            route: [],
+            workoutType: type,
+            runCategory: nil,
+            isCompleted: false
+        )
+        
+        startLocation = currentLocation
+        print("Workout started successfully")
+    }
+    
+    func pauseWorkout() {
+        isWorkoutActive = false
+        workoutTimer?.invalidate()
+        locationManager.stopUpdatingLocation()
+    }
+    
+    func resumeWorkout() {
+        guard let workout = currentWorkout, !isWorkoutActive else { return }
+        
+        isWorkoutActive = true
+        locationManager.startUpdatingLocation()
+        
+        workoutTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            self.elapsedTime += 1
+            self.updateCalories()
+            self.updatePace()
+        }
+    }
+    
+    func endWorkout() {
+        guard let workout = currentWorkout else { return }
+        
+        isWorkoutActive = false
+        workoutTimer?.invalidate()
+        locationManager.stopUpdatingLocation()
+        
+        // Update final workout data
+        var updatedWorkout = workout
+        updatedWorkout.endTime = Date()
+        updatedWorkout.duration = elapsedTime
+        updatedWorkout.distance = distance
+        updatedWorkout.calories = calories
+        updatedWorkout.route = routeCoordinates.map { WorkoutSession.Coordinate(coordinate: $0) }
+        updatedWorkout.runCategory = categorizeRun(duration: elapsedTime, distance: distance)
+        updatedWorkout.isCompleted = true
+        
+        // Save to history
+        workoutHistory.append(updatedWorkout)
+        saveWorkoutHistory()
+        
+        // Add workout time to daily goal
+        addToDailyGoal(elapsedTime)
+        
+        // Reset current workout
+        currentWorkout = nil
+        elapsedTime = 0
+        distance = 0
+        calories = 0
+        averagePace = 0
+        currentPace = 0
+        routeCoordinates.removeAll()
+        
+        // Trigger notification
+        NotificationManager.shared.scheduleStreakNotification(streak: getCurrentStreak())
+    }
+    
+    private func updateCalories() {
+        // Simple calorie calculation based on time and workout type
+        let caloriesPerMinute: Double
+        switch workoutType {
+        case .running: caloriesPerMinute = 12.0
+        case .walking: caloriesPerMinute = 6.0
+        case .cycling: caloriesPerMinute = 8.0
+        case .cardio: caloriesPerMinute = 10.0
+        }
+        
+        calories = Int((elapsedTime / 60.0) * caloriesPerMinute)
+    }
+    
+    private func updatePace() {
+        guard distance > 0 else { return }
+        
+        // Calculate pace in minutes per kilometer
+        let paceInSeconds = elapsedTime / (distance / 1000.0)
+        currentPace = paceInSeconds / 60.0
+        
+        // Update average pace
+        averagePace = currentPace
+    }
+    
+    private func loadWorkoutHistory() {
+        if let data = UserDefaults.standard.data(forKey: "workoutHistory"),
+           let history = try? JSONDecoder().decode([WorkoutSession].self, from: data) {
+            workoutHistory = history
+        }
+    }
+    
+    private func saveWorkoutHistory() {
+        if let data = try? JSONEncoder().encode(workoutHistory) {
+            UserDefaults.standard.set(data, forKey: "workoutHistory")
+        }
+    }
+    
+    private func loadDailyGoalProgress() {
+        let today = Calendar.current.startOfDay(for: Date())
+        let lastSavedDate = UserDefaults.standard.object(forKey: "lastDailyGoalDate") as? Date ?? Date.distantPast
+        
+        // Reset progress if it's a new day
+        if !Calendar.current.isDate(today, inSameDayAs: lastSavedDate) {
+            dailyGoalProgress = 0
+            UserDefaults.standard.set(today, forKey: "lastDailyGoalDate")
+        } else {
+            dailyGoalProgress = UserDefaults.standard.double(forKey: "dailyGoalProgress")
+        }
+    }
+    
+    private func saveDailyGoalProgress() {
+        UserDefaults.standard.set(dailyGoalProgress, forKey: "dailyGoalProgress")
+        UserDefaults.standard.set(Date(), forKey: "lastDailyGoalDate")
+    }
+    
+    func addToDailyGoal(_ time: TimeInterval) {
+        dailyGoalProgress += time
+        saveDailyGoalProgress()
+    }
+    
+    func getDailyGoalProgress() -> Double {
+        let goalMinutes: Double = 15.0
+        let goalSeconds = goalMinutes * 60.0
+        return min(dailyGoalProgress / goalSeconds, 1.0)
+    }
+    
+    func getDailyGoalTimeString() -> String {
+        let minutes = Int(dailyGoalProgress) / 60
+        let seconds = Int(dailyGoalProgress) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+    
+    func getCurrentStreak() -> Int {
+        // Calculate current streak based on completed workouts
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        var streak = 0
+        var currentDate = today
+        
+        while true {
+            let workoutsOnDate = workoutHistory.filter { workout in
+                calendar.isDate(workout.startTime, inSameDayAs: currentDate) && workout.isCompleted
+            }
+            
+            if workoutsOnDate.isEmpty {
+                break
+            }
+            
+            streak += 1
+            currentDate = calendar.date(byAdding: .day, value: -1, to: currentDate) ?? currentDate
+        }
+        
+        return streak
+    }
+    
+    func getTotalWorkouts() -> Int {
+        return workoutHistory.filter { $0.isCompleted }.count
+    }
+    
+    func getLongestStreak() -> Int {
+        // Calculate longest streak from workout history
+        var longestStreak = 0
+        var currentStreak = 0
+        let calendar = Calendar.current
+        let sortedWorkouts = workoutHistory.filter { $0.isCompleted }.sorted { $0.startTime < $1.startTime }
+        
+        for workout in sortedWorkouts {
+            let workoutDate = calendar.startOfDay(for: workout.startTime)
+            let previousDate = calendar.date(byAdding: .day, value: -1, to: workoutDate) ?? workoutDate
+            
+            if currentStreak == 0 || calendar.isDate(workoutDate, inSameDayAs: previousDate) {
+                currentStreak += 1
+            } else {
+                longestStreak = max(longestStreak, currentStreak)
+                currentStreak = 1
+            }
+        }
+        
+        return max(longestStreak, currentStreak)
+    }
+}
+
+// MARK: - Location Manager Extension
+
+extension WorkoutManager: CLLocationManagerDelegate {
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard let location = locations.last else { return }
+        
+        // Filter out low-quality locations
+        guard location.horizontalAccuracy <= 20 else { return } // Only accept locations with accuracy better than 20 meters
+        
+        // Filter out locations that are too close together (reduces fidgety behavior)
+        if let lastLocation = lastLocation {
+            let distanceFromLast = location.distance(from: lastLocation)
+            if distanceFromLast < 3 { return } // Skip locations less than 3 meters apart
+        }
+        
+        print("Location update received: \(location.coordinate) - Accuracy: \(location.horizontalAccuracy)m")
+        currentLocation = location
+        
+        if isWorkoutActive {
+            if let lastLocation = lastLocation {
+                let newDistance = location.distance(from: lastLocation)
+                
+                // Additional filtering for more stable distance calculation
+                if newDistance > 0 && newDistance < 100 { // Reasonable distance between points
+                    distance += newDistance
+                    
+                    // Add to route with additional smoothing
+                    if shouldAddToRoute(location: location) {
+                        routeCoordinates.append(location.coordinate)
+                    }
+                    print("Distance updated: \(distance)m")
+                }
+            }
+            
+            lastLocation = location
+        }
+    }
+    
+    private func shouldAddToRoute(location: CLLocation) -> Bool {
+        // Only add to route if we have enough points or if it's significantly different
+        if routeCoordinates.count < 2 {
+            return true
+        }
+        
+        guard let lastCoordinate = routeCoordinates.last else { return true }
+        let lastLocation = CLLocation(latitude: lastCoordinate.latitude, longitude: lastCoordinate.longitude)
+        let distance = location.distance(from: lastLocation)
+        let timeInterval = location.timestamp.timeIntervalSince(lastLocation.timestamp)
+        
+        // Calculate speed in m/s
+        let speed = timeInterval > 0 ? distance / timeInterval : 0
+        
+        // Add point if it's at least 5 meters away from the last point
+        // and the speed is reasonable (between 0.5 and 10 m/s, which is roughly 1.8-36 km/h)
+        return distance >= 5 && speed >= 0.5 && speed <= 10
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        print("Location manager failed with error: \(error)")
+    }
+    
+    func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
+        print("Location authorization changed to: \(status.rawValue)")
+        switch status {
+        case .authorizedWhenInUse:
+            if isWorkoutActive {
+                locationManager.startUpdatingLocation()
+                print("Location updates started")
+            }
+        case .authorizedAlways:
+            if isWorkoutActive {
+                locationManager.startUpdatingLocation()
+                print("Location updates started")
+            }
+        case .denied, .restricted:
+            print("Location permission denied or restricted")
+        case .notDetermined:
+            print("Location permission not determined")
+        @unknown default:
+            print("Unknown authorization status")
+        }
+    }
+}
+
+// MARK: - Workout History Row
+
+struct WorkoutHistoryRow: View {
+    let workout: WorkoutSession
+    
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: workout.startTime)
+    }
+    
+    private var formattedDuration: String {
+        let minutes = Int(workout.duration) / 60
+        let seconds = Int(workout.duration) % 60
+        return String(format: "%d:%02d", minutes, seconds)
+    }
+    
+    private var formattedDistance: String {
+        if workout.distance >= 1000 {
+            return String(format: "%.1f km", workout.distance / 1000)
+        } else {
+            return String(format: "%.0f m", workout.distance)
+        }
+    }
+    
+    private var formattedPace: String {
+        if workout.duration > 0 && workout.distance > 0 {
+            let paceInSeconds = workout.duration / (workout.distance / 1000.0)
+            let minutes = Int(paceInSeconds) / 60
+            let seconds = Int(paceInSeconds) % 60
+            return String(format: "%d:%02d", minutes, seconds)
+        } else {
+            return "--:--"
+        }
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Workout Type Icon
+            Image(systemName: workout.workoutType.icon)
+                .font(.title3)
+                .foregroundColor(workout.workoutType.color)
+                .frame(width: 30)
+            
+            // Workout Details
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(workout.workoutType.rawValue)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                    
+                    if let category = workout.runCategory {
+                        Text("•")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        
+                        Text(category.rawValue)
+                            .font(.caption)
+                            .foregroundColor(category.color)
+                            .fontWeight(.medium)
+                    }
+                }
+                
+                Text(formattedDate)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            
+            Spacer()
+            
+            // Stats
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(formattedDuration)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.gold)
+                
+                HStack(spacing: 8) {
+                    Text(formattedDistance)
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    Text("•")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    Text(formattedPace)
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+            }
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.black.opacity(0.2))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(workout.workoutType.color.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+}
+
+// MARK: - Category Filter Button
+
+struct CategoryFilterButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(isSelected ? .white : .gray)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 15)
+                        .fill(isSelected ? Color.gold.opacity(0.3) : Color.clear)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 15)
+                                .stroke(isSelected ? Color.gold : Color.gray.opacity(0.5), lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - Workout Detail View
+
+struct WorkoutDetailView: View {
+    let workout: WorkoutSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var region = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+    )
+    
+    private var routeCoordinates: [CLLocationCoordinate2D] {
+        workout.route?.map { $0.clCoordinate } ?? []
+    }
+    
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                gradient: Gradient(colors: [Color.black, Color.black.opacity(0.9)]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(.gold)
+                    .font(.headline)
+                    
+                    Spacer()
+                    
+                    Text("Workout Details")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    
+                    Spacer()
+                    
+                    // Invisible button for balance
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(.clear)
+                    .font(.headline)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 20)
+                
+                ScrollView {
+                    VStack(spacing: 20) {
+                        // Workout Summary Card
+                        GlassCard {
+                            VStack(spacing: 16) {
+                                HStack {
+                                    Image(systemName: workout.workoutType.icon)
+                                        .font(.title)
+                                        .foregroundColor(workout.workoutType.color)
+                                    
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        HStack(spacing: 8) {
+                                            Text(workout.workoutType.rawValue)
+                                                .font(.title2)
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.white)
+                                            
+                                            if let category = workout.runCategory {
+                                                Text("•")
+                                                    .font(.title3)
+                                                    .foregroundColor(.gray)
+                                                
+                                                Text(category.rawValue)
+                                                    .font(.title3)
+                                                    .foregroundColor(category.color)
+                                                    .fontWeight(.semibold)
+                                            }
+                                        }
+                                        
+                                        Text(formatDate(workout.startTime))
+                                            .font(.subheadline)
+                                            .foregroundColor(.gray)
+                                    }
+                                    
+                                    Spacer()
+                                }
+                                
+                                // Stats Grid
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible()),
+                                    GridItem(.flexible()),
+                                    GridItem(.flexible())
+                                ], spacing: 16) {
+                                    DetailStatCard(title: "Duration", value: formatDuration(workout.duration), icon: "clock")
+                                    DetailStatCard(title: "Distance", value: formatDistance(workout.distance), icon: "location")
+                                    DetailStatCard(title: "Pace", value: formatPace(workout.duration, workout.distance), icon: "speedometer")
+                                }
+                            }
+                            .padding(20)
+                        }
+                        .padding(.horizontal, 20)
+                        
+                                                // Route Map (if available)
+                        if !routeCoordinates.isEmpty {
+                            GlassCard {
+                                VStack(spacing: 16) {
+                                    HStack {
+                                        Image(systemName: "map")
+                                            .font(.title2)
+                                            .foregroundColor(.gold)
+                                        
+                                        Text("Route")
+                                            .font(.headline)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                        
+                                        Spacer()
+                                    }
+                                    
+                                    Map(coordinateRegion: .constant(region))
+                                        .frame(height: 200)
+                                        .cornerRadius(12)
+                                }
+                                .padding(20)
+                            }
+                            .padding(.horizontal, 20)
+                        }
+                    }
+                    .padding(.top, 20)
+                }
+            }
+        }
+        .onAppear {
+            // Set map region to show the entire route
+            if !routeCoordinates.isEmpty {
+                updateMapRegion()
+            }
+        }
+    }
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .full
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let hours = Int(duration) / 3600
+        let minutes = Int(duration) % 3600 / 60
+        let seconds = Int(duration) % 60
+        
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            return String(format: "%d:%02d", minutes, seconds)
+        }
+    }
+    
+    private func formatDistance(_ distance: Double) -> String {
+        if distance >= 1000 {
+            return String(format: "%.2f km", distance / 1000)
+        } else {
+            return String(format: "%.0f m", distance)
+        }
+    }
+    
+    private func formatPace(_ duration: TimeInterval, _ distance: Double) -> String {
+        if duration > 0 && distance > 0 {
+            let paceInSeconds = duration / (distance / 1000.0)
+            let minutes = Int(paceInSeconds) / 60
+            let seconds = Int(paceInSeconds) % 60
+            return String(format: "%d:%02d", minutes, seconds)
+        } else {
+            return "--:--"
+        }
+    }
+    
+
+    
+    private func updateMapRegion() {
+        let latitudes = routeCoordinates.map { $0.latitude }
+        let longitudes = routeCoordinates.map { $0.longitude }
+        
+        let minLat = latitudes.min() ?? 0
+        let maxLat = latitudes.max() ?? 0
+        let minLon = longitudes.min() ?? 0
+        let maxLon = longitudes.max() ?? 0
+        
+        let centerLat = (minLat + maxLat) / 2
+        let centerLon = (minLon + maxLon) / 2
+        let spanLat = (maxLat - minLat) * 1.2
+        let spanLon = (maxLon - minLon) * 1.2
+        
+        region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: centerLat, longitude: centerLon),
+            span: MKCoordinateSpan(latitudeDelta: max(spanLat, 0.01), longitudeDelta: max(spanLon, 0.01))
+        )
+    }
+}
+
+struct DetailStatCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(.gold)
+            
+            Text(value)
+                .font(.headline)
+                .foregroundColor(.white)
+                .fontWeight(.bold)
+            
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.gray)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.black.opacity(0.3))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.gold.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+}
+
+// MARK: - Workout Map View
+
+struct WorkoutMapView: View {
+    @ObservedObject var workoutManager: WorkoutManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var region = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
+        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+    )
+    @State private var routeCoordinates: [CLLocationCoordinate2D] = []
+    
+    var body: some View {
+        ZStack {
+            // Map View with Route
+            Map(coordinateRegion: $region, showsUserLocation: true, userTrackingMode: .constant(.follow))
+            .ignoresSafeArea()
+            
+            // Overlay UI
+            VStack {
+                // Top Bar
+                HStack {
+                    Button(action: {
+                        // Save current workout time to daily goal before dismissing
+                        if workoutManager.isWorkoutActive {
+                            workoutManager.addToDailyGoal(workoutManager.elapsedTime)
+                            workoutManager.endWorkout()
+                        }
+                        dismiss()
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                            .background(Circle().fill(Color.black.opacity(0.6)))
+                    }
+                    
+                    Spacer()
+                    
+                    VStack(spacing: 4) {
+                        Text(workoutManager.workoutType.rawValue)
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .fontWeight(.bold)
+                        
+                        Text(formatTime(workoutManager.elapsedTime))
+                            .font(.subheadline)
+                            .foregroundColor(.gold)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        if workoutManager.isWorkoutActive {
+                            workoutManager.pauseWorkout()
+                        } else {
+                            workoutManager.resumeWorkout()
+                        }
+                    }) {
+                        Image(systemName: workoutManager.isWorkoutActive ? "pause.circle.fill" : "play.circle.fill")
+                            .font(.title2)
+                            .foregroundColor(workoutManager.isWorkoutActive ? .red : .green)
+                            .background(Circle().fill(Color.black.opacity(0.6)))
+                    }
+                }
+                .padding()
+                .background(
+                    Rectangle()
+                        .fill(Color.black.opacity(0.7))
+                        .ignoresSafeArea()
+                )
+                
+                Spacer()
+                
+                // Bottom Stats
+                VStack(spacing: 12) {
+                    HStack(spacing: 20) {
+                        StatCard(title: "Distance", value: formatDistance(workoutManager.distance), icon: "location")
+                        StatCard(title: "Time", value: formatTime(workoutManager.elapsedTime), icon: "clock")
+                        StatCard(title: "Pace", value: formatPace(workoutManager.currentPace), icon: "speedometer")
+                    }
+                    
+                    // End Workout Button
+                    Button(action: {
+                        workoutManager.endWorkout()
+                        dismiss()
+                    }) {
+                        Text("End Workout")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 15)
+                            .background(
+                                RoundedRectangle(cornerRadius: 25)
+                                    .fill(Color.red.opacity(0.8))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 25)
+                                            .stroke(Color.red, lineWidth: 1)
+                                    )
+                            )
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .padding()
+                .background(
+                    Rectangle()
+                        .fill(Color.black.opacity(0.7))
+                        .ignoresSafeArea()
+                )
+            }
+        }
+        .onAppear {
+            // Update region to user's current location
+            if let location = workoutManager.currentLocation {
+                region.center = location.coordinate
+            }
+        }
+        .onChange(of: workoutManager.currentLocation) { _, location in
+            if let location = location {
+                // Smooth region updates to reduce map jumping
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    region.center = location.coordinate
+                }
+            }
+        }
+        .onReceive(workoutManager.$routeCoordinates) { coordinates in
+            // Update route coordinates from workout manager
+            routeCoordinates = coordinates
+        }
+        .onChange(of: workoutManager.isWorkoutActive) { _, isActive in
+            if isActive {
+                // Start new route when workout begins
+                routeCoordinates.removeAll()
+                if let location = workoutManager.currentLocation {
+                    routeCoordinates.append(location.coordinate)
+                }
+            }
+        }
+    }
+    
+    private func formatTime(_ timeInterval: TimeInterval) -> String {
+        let minutes = Int(timeInterval) / 60
+        let seconds = Int(timeInterval) % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+    
+    private func formatDistance(_ distance: Double) -> String {
+        if distance >= 1000 {
+            return String(format: "%.1f km", distance / 1000)
+        } else {
+            return String(format: "%.0f m", distance)
+        }
+    }
+    
+    private func formatPace(_ pace: Double) -> String {
+        if pace > 0 {
+            let minutes = Int(pace)
+            let seconds = Int((pace - Double(minutes)) * 60)
+            return String(format: "%d:%02d", minutes, seconds)
+        } else {
+            return "--:--"
+        }
+    }
+}
+
+struct StatCard: View {
+    let title: String
+    let value: String
+    let icon: String
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundColor(.gold)
+            
+            Text(value)
+                .font(.headline)
+                .foregroundColor(.white)
+                .fontWeight(.bold)
+            
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.gray)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.black.opacity(0.5))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.gold.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+}
+
+
 
 // MARK: - Main App View (Improved Welcome Screen)
 
@@ -1377,16 +2534,11 @@ struct MainAppView: View {
     let authTracker: AuthenticationTracker
     @State private var pulse = false
     @State private var progressAnimation = false
-    @State private var currentProgress: Double = 0.0
-    @State private var timeElapsed: Int = 0
-    @State private var isActive = false
     @State private var showingUserSettings = false
     @State private var showingWorkoutMap = false
-    @State private var currentStreak = 7 // Shared streak data
+    @State private var userSettingsInitialTab = 0
     @StateObject private var notificationManager = NotificationManager.shared
-    
-    // Timer for demo purposes - in real app this would be actual workout time
-    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    @StateObject private var workoutManager = WorkoutManager.shared
 
     var body: some View {
         ZStack {
@@ -1400,19 +2552,32 @@ struct MainAppView: View {
             VStack(spacing: 0) {
                 // Progress Section (60% of screen)
                 ProgressSection(
-                    progress: currentProgress,
-                    timeElapsed: timeElapsed,
-                    isActive: isActive,
-                    onStart: { startWorkout() },
-                    onStop: { stopWorkout() },
-                    onWorkoutMap: { showingWorkoutMap = true },
-                    currentStreak: currentStreak
+                    progress: workoutManager.getDailyGoalProgress(),
+                    timeElapsed: Int(workoutManager.dailyGoalProgress),
+                    isActive: workoutManager.isWorkoutActive,
+                    onStart: { 
+                        if workoutManager.isWorkoutActive {
+                            workoutManager.pauseWorkout()
+                        } else {
+                            workoutManager.startWorkout(type: .running)
+                            showingWorkoutMap = true
+                        }
+                    },
+                    onStop: { 
+                        if workoutManager.isWorkoutActive {
+                            workoutManager.endWorkout()
+                        }
+                    },
+                    onWorkoutMap: { },
+                    currentStreak: workoutManager.getCurrentStreak(),
+                    showingUserSettings: $showingUserSettings,
+                    userSettingsInitialTab: $userSettingsInitialTab
                 )
                 
                 // Bottom Section (40% of screen)
                 VStack(spacing: 12) {
                     // Streaks Section
-                    StreaksSection(currentStreak: currentStreak)
+                    StreaksSection(currentStreak: workoutManager.getCurrentStreak())
             .padding(.horizontal, 30)
                         .padding(.top, 15)
                 }
@@ -1434,42 +2599,13 @@ struct MainAppView: View {
             progressAnimation = true
             notificationManager.requestPermission()
         }
-        .onReceive(timer) { _ in
-            if isActive && timeElapsed < 900 { // 15 minutes = 900 seconds
-                timeElapsed += 1
-                currentProgress = Double(timeElapsed) / 900.0
-            }
-        }
         .sheet(isPresented: $showingUserSettings) {
-            UserSettingsView(userPreferences: userPreferences, authTracker: authTracker)
+            UserSettingsView(userPreferences: userPreferences, authTracker: authTracker, initialTab: userSettingsInitialTab)
         }
         .fullScreenCover(isPresented: $showingWorkoutMap) {
-            WorkoutMapView()
+            WorkoutMapView(workoutManager: workoutManager)
         }
         .statusBarHidden(true)
-    }
-    
-    private func startWorkout() {
-        isActive = true
-        withAnimation(.easeInOut(duration: 0.5)) {
-            progressAnimation = true
-        }
-    }
-    
-    private func stopWorkout() {
-        isActive = false
-        withAnimation(.easeInOut(duration: 0.5)) {
-            progressAnimation = false
-        }
-        
-        // Trigger streak notification when workout is completed
-        if currentProgress >= 1.0 {
-            notificationManager.scheduleStreakNotification(streak: currentStreak)
-        }
-    }
-    
-    private func triggerStreakNotification() {
-        notificationManager.scheduleStreakNotification(streak: currentStreak)
     }
 }
 

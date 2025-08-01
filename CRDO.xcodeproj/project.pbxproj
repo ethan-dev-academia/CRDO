@@ -400,6 +400,9 @@
 				DEVELOPMENT_TEAM = VHQNB3XYK7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "CRDO needs access to your location to track your workout routes and calculate distance.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "CRDO needs access to your location to track your workout routes and calculate distance even when the app is in the background.";
+				INFOPLIST_KEY_UIBackgroundModes = "location background-processing";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -428,6 +431,9 @@
 				DEVELOPMENT_TEAM = VHQNB3XYK7;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "CRDO needs access to your location to track your workout routes and calculate distance.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "CRDO needs access to your location to track your workout routes and calculate distance even when the app is in the background.";
+				INFOPLIST_KEY_UIBackgroundModes = "location background-processing";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
